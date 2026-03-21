@@ -64,8 +64,9 @@ function ChartBox(props) {
 // ── 차트 config 생성 함수 ─────────────────────────────────────────────────────
 function makeComboConfig(labels, barData, lineData, barLabel, lineLabel) {
   var maxBar = Math.max.apply(null, barData.concat([1]));
-  // 막대를 하단 40% 에 고정: y1max = maxBar / 0.4
-  var y1max = Math.ceil(maxBar / 0.4);
+  var y1max = Math.ceil(maxBar / 0.35);
+  // 차트 높이 대비 막대가 35% 이하에 위치 → 선(0~100%)은 35~100% 영역에서만 움직임
+  // y2=100%일때 차트 최상단, y2=0%일때 y1max에 비례한 중간 지점 → 구조적으로 분리
 
   return {
     type: "bar",
@@ -102,13 +103,16 @@ function makeComboConfig(labels, barData, lineData, barLabel, lineLabel) {
           tension: 0.4,
           yAxisID: "y2",
           datalabels: {
-            color: "#fca5a5",
+            color: "#f87171",
             font: { size: 9, weight: "bold" },
-            backgroundColor: "#0f172a",
+            backgroundColor: "#1e293b",
             borderRadius: 3,
-            padding: { left: 2, right: 2, top: 1, bottom: 1 },
+            borderWidth: 1,
+            borderColor: "#f8717166",
+            padding: { left: 3, right: 3, top: 1, bottom: 1 },
+            // 포인트 기준 위쪽 고정 — 막대와 겹치지 않음
             anchor: "end",
-            align: "top",
+            align: "end",
             offset: 4,
             formatter: function(v) { return v + "%"; }
           }
@@ -118,7 +122,7 @@ function makeComboConfig(labels, barData, lineData, barLabel, lineLabel) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { top: 32, right: 8 } },
+      layout: { padding: { top: 40, right: 8 } },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -131,7 +135,7 @@ function makeComboConfig(labels, barData, lineData, barLabel, lineLabel) {
       },
       scales: {
         x: {
-          ticks: { color: "#94a3b8", font: { size: 10 }, maxRotation: 25 },
+          ticks: { color: "#94a3b8", font: { size: 12, weight: "600" }, maxRotation: 25 },
           grid: { color: "#334155" }
         },
         y1: {
@@ -140,7 +144,7 @@ function makeComboConfig(labels, barData, lineData, barLabel, lineLabel) {
           max: y1max,
           ticks: {
             color: "#60a5fa",
-            font: { size: 9 },
+            font: { size: 11 },
             maxTicksLimit: 5,
             callback: function(v) { return intFmt(v); }
           },
@@ -152,7 +156,7 @@ function makeComboConfig(labels, barData, lineData, barLabel, lineLabel) {
           max: 100,
           ticks: {
             color: "#f87171",
-            font: { size: 9 },
+            font: { size: 11 },
             callback: function(v) { return v + "%"; }
           },
           grid: { drawOnChartArea: false }
@@ -347,28 +351,28 @@ function App() {
     // 타이틀
     C("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 } },
       C("div", null,
-        C("h1", { style: { fontSize: 16, fontWeight: 700 } },
+        C("h1", { style: { fontSize: 20, fontWeight: 800 } },
           "야간책임운영실 ", C("span", { style: { color: "#60a5fa" } }, mon + "월" + day + "일"), " QC 현황"
         ),
-        fileName ? C("div", { style: { fontSize: 10, color: "#475569", marginTop: 1 } }, "📄 " + fileName) : null
+        fileName ? C("div", { style: { fontSize: 12, color: "#475569", marginTop: 2 } }, "📄 " + fileName) : null
       ),
       C("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
         C("input", {
           type: "date", value: reportDate,
           onChange: function(e) { setReportDate(e.target.value); },
-          style: { background: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#f1f5f9", padding: "4px 8px", fontSize: 12, outline: "none" }
+          style: { background: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#f1f5f9", padding: "5px 10px", fontSize: 13, outline: "none" }
         }),
         (analysis && !saved) ? C("button", {
           onClick: handleSave, disabled: saving,
-          style: { background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 6, color: "#60a5fa", padding: "4px 12px", cursor: "pointer", fontSize: 12 }
+          style: { background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 6, color: "#60a5fa", padding: "5px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }
         }, saving ? "저장 중..." : "💾 저장") : null,
-        saveMsg ? C("span", { style: { fontSize: 11, color: "#4ade80" } }, saveMsg) : null,
+        saveMsg ? C("span", { style: { fontSize: 13, fontWeight: 700, color: "#4ade80" } }, saveMsg) : null,
         analysis ? C("button", {
           onClick: function() {
             setAnalysis(null); setFileName(""); setDefectSaved(false); setDefectData(null);
             setSaved(false); setSaveMsg(""); setDefects({얼룩:"",손상:"",먼지:""});
           },
-          style: { background: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#64748b", padding: "4px 10px", cursor: "pointer", fontSize: 12 }
+          style: { background: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#64748b", padding: "5px 12px", cursor: "pointer", fontSize: 13 }
         }, "🔄") : null
       )
     ),
@@ -402,29 +406,29 @@ function App() {
              ["부적합", analysis.fail.toLocaleString() + "건", "#f87171"],
              ["부적합률", failRate + "%", "#fbbf24"]
             ].map(function(k) {
-              return C("div", { key: k[0], style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1 } },
-                C("div", { style: { fontSize: 10, color: "#64748b", marginBottom: 2 } }, k[0]),
-                C("div", { style: { fontSize: 22, fontWeight: 700, color: k[2], lineHeight: 1 } }, k[1])
+              return C("div", { key: k[0], style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, height: 80, display: "flex", flexDirection: "column", justifyContent: "center" } },
+                C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 4 } }, k[0]),
+                C("div", { style: { fontSize: 28, fontWeight: 800, color: k[2], lineHeight: 1 } }, k[1])
               );
             })
           ),
 
           // 부적합 유형
-          C("div", { style: { display: "flex", gap: 8, flex: 1, alignItems: "stretch" } },
+          C("div", { style: { display: "flex", gap: 8, alignItems: "stretch" } },
             !defectSaved
               ? DEFECT_TYPES.map(function(t) {
-                  return C("div", { key: t, style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1 } },
-                    C("div", { style: { fontSize: 10, color: "#64748b", marginBottom: 4 } }, t),
+                  return C("div", { key: t, style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, height: 80, display: "flex", flexDirection: "column", justifyContent: "center" } },
+                    C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 4 } }, t),
                     C("input", {
                       type: "number", min: "0", value: defects[t],
                       onChange: function(e) { var v = e.target.value; setDefects(function(p) { return Object.assign({}, p, {[t]: v}); }); },
-                      style: { width: "100%", textAlign: "center", color: "#f87171", background: "#0f172a", border: "1px solid #334155", borderRadius: 6, padding: "4px", fontSize: 18, fontWeight: 700, outline: "none" }
+                      style: { width: "100%", textAlign: "center", color: "#f87171", background: "#0f172a", border: "1px solid #334155", borderRadius: 6, padding: "4px", fontSize: 20, fontWeight: 800, outline: "none" }
                     })
                   );
                 }).concat([
-                  C("div", { key: "etc", style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, opacity: 0.5 } },
-                    C("div", { style: { fontSize: 10, color: "#64748b", marginBottom: 4 } }, "기타"),
-                    C("div", { style: { fontSize: 18, fontWeight: 700, color: "#94a3b8", textAlign: "center", padding: "4px 0" } }, etc)
+                  C("div", { key: "etc", style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, height: 80, display: "flex", flexDirection: "column", justifyContent: "center", opacity: 0.5 } },
+                    C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 4 } }, "기타"),
+                    C("div", { style: { fontSize: 20, fontWeight: 800, color: "#94a3b8", textAlign: "center" } }, etc)
                   ),
                   C("div", { key: "btn", style: { display: "flex", alignItems: "center" } },
                     C("button", {
@@ -434,10 +438,10 @@ function App() {
                   )
                 ])
               : (defectData || []).map(function(d) {
-                  return C("div", { key: d.name, style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, borderTop: "2px solid " + d.color } },
-                    C("div", { style: { fontSize: 10, color: "#64748b", marginBottom: 2 } }, d.name),
-                    C("div", { style: { fontSize: 22, fontWeight: 700, color: d.color, lineHeight: 1 } }, d.value + "건"),
-                    C("div", { style: { fontSize: 10, color: "#475569", marginTop: 1 } }, pct(d.value, analysis.fail) + "%")
+                  return C("div", { key: d.name, style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, height: 80, display: "flex", flexDirection: "column", justifyContent: "center", borderTop: "2px solid " + d.color } },
+                    C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 2 } }, d.name),
+                    C("div", { style: { fontSize: 28, fontWeight: 800, color: d.color, lineHeight: 1 } }, d.value + "건"),
+                    C("div", { style: { fontSize: 12, fontWeight: 600, color: "#64748b", marginTop: 2 } }, pct(d.value, analysis.fail) + "%")
                   );
                 }).concat([
                   C("div", { key: "edit", style: { display: "flex", alignItems: "center" } },
@@ -452,7 +456,7 @@ function App() {
 
         // 원그래프
         C("div", { style: { background: "#1e293b", borderRadius: 8, padding: "10px 12px", width: 170, flexShrink: 0, display: "flex", flexDirection: "column" } },
-          C("div", { style: { fontSize: 10, fontWeight: 600, color: "#64748b", marginBottom: 4 } }, "적합 / 부적합"),
+          C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 4 } }, "적합 / 부적합"),
           C("div", { style: { position: "relative", flex: 1 } },
             C(ChartBox, { config: pieConfig, height: "100%" })
           )
@@ -462,8 +466,8 @@ function App() {
       // Row2: 품목별
       (analysis.itemStats.length > 0) ? C("div", { style: cardSt },
         C("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
-          C("div", { style: { fontSize: 11, fontWeight: 600, color: "#94a3b8" } }, "품목별 QC 현황"),
-          C("div", { style: { fontSize: 9, color: "#64748b", display: "flex", gap: 8 } },
+          C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8" } }, "품목별 QC 현황"),
+          C("div", { style: { fontSize: 11, color: "#64748b", display: "flex", gap: 8 } },
             C("span", null, C("span", { style: { display: "inline-block", width: 8, height: 8, background: "#60a5fa", borderRadius: 2, marginRight: 2, verticalAlign: "middle" } }), "총건수(좌)"),
             C("span", null, C("span", { style: { display: "inline-block", width: 10, height: 2, background: "#f87171", marginRight: 2, verticalAlign: "middle" } }), "부적합률%(우)")
           )
@@ -474,8 +478,8 @@ function App() {
       // Row3: 트렌드
       records.length > 0 ? C("div", { style: cardSt },
         C("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
-          C("div", { style: { fontSize: 11, fontWeight: 600, color: "#94a3b8" } }, "날짜별 QC 실적 추이"),
-          C("div", { style: { fontSize: 9, color: "#64748b", display: "flex", gap: 8 } },
+          C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8" } }, "날짜별 QC 실적 추이"),
+          C("div", { style: { fontSize: 11, color: "#64748b", display: "flex", gap: 8 } },
             C("span", null, C("span", { style: { display: "inline-block", width: 8, height: 8, background: "#60a5fa", borderRadius: 2, marginRight: 2, verticalAlign: "middle" } }), "총건수(좌)"),
             C("span", null, C("span", { style: { display: "inline-block", width: 10, height: 2, background: "#f87171", marginRight: 2, verticalAlign: "middle" } }), "부적합률%(우)")
           )
