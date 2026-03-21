@@ -181,16 +181,15 @@ function App(){
           }}}}
   }:null;
 
-  // 얼룩체크 — Y/N 부적합률 비교 (가설 검증용)
+  // 얼룩체크 — Y/N 부적합 건수 단순 비교
   var stainConfig=analysis&&analysis.stainStats?{
     type:"bar",
     data:{
-      labels:analysis.stainStats.map(function(s){return s.key==="Y"?"얼룩체크 Y\n(사전확인함)":"얼룩체크 N\n(사전확인안함)";}),
+      labels:["얼룩체크 Y","얼룩체크 N"],
       datasets:[{
-        label:"부적합률(%)",
-        data:analysis.stainStats.map(function(s){return s.failRate;}),
-        backgroundColor:analysis.stainStats.map(function(s){return s.key==="N"?"#f8717199":"#60a5fa55";}),
-        borderColor:analysis.stainStats.map(function(s){return s.key==="N"?"#f87171":"#60a5fa";}),
+        data:analysis.stainStats.map(function(s){return s.fail;}),
+        backgroundColor:["#60a5fa88","#f8717188"],
+        borderColor:["#60a5fa","#f87171"],
         borderWidth:2,borderRadius:6,borderSkipped:false
       }]
     },
@@ -198,29 +197,19 @@ function App(){
       plugins:{
         legend:{display:false},
         datalabels:{
-          color:"#f1f5f9",font:{size:14,weight:"bold"},
+          color:"#f1f5f9",font:{size:16,weight:"bold"},
           anchor:"end",align:"start",offset:6,
-          formatter:function(v){return v+"%";}
+          formatter:function(v){return v+"건";}
         },
-        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",
-          borderColor:"#334155",borderWidth:1,
-          callbacks:{
-            afterBody:function(items){
-              var idx=items[0].dataIndex;
-              var s=analysis.stainStats[idx];
-              return["총 "+s.total+"건 (적합 "+s.pass+" / 부적합 "+s.fail+")"];
-            }
-          }
-        }
+        tooltip:{enabled:false}
       },
       scales:{
-        x:{ticks:{color:"#94a3b8",font:{size:12}},grid:{color:"#334155"}},
-        y:{min:0,max:100,ticks:{color:"#64748b",font:{size:10},callback:function(v){return v+"%";}},
-          grid:{color:"#334155"}}
+        x:{ticks:{color:"#94a3b8",font:{size:13,weight:"bold"}},grid:{display:false}},
+        y:{display:false}
       }}
   }:null;
 
-  // 품목별 — 막대(하단 60%)와 선(상단 40%) 영역 분리
+  // 품목별 — 막대와 선 완전 분리 (좌축 max를 실제값의 3배로 막대를 하단 1/3에 고정)
   var maxTotal=analysis?Math.max.apply(null,analysis.itemStats.map(function(d){return d.total;})):1;
   var itemConfig=analysis&&analysis.itemStats.length>0?{
     type:"bar",
@@ -229,26 +218,29 @@ function App(){
         {type:"bar",label:"총건수",data:analysis.itemStats.map(function(d){return d.total;}),
           backgroundColor:"#3b82f699",borderColor:"#60a5fa",borderWidth:2,borderRadius:4,yAxisID:"y1",
           datalabels:{color:"#93c5fd",font:{size:10,weight:"bold"},anchor:"end",align:"top",offset:2,
-            clamp:true,formatter:function(v){return v;}}},
+            clamp:false,formatter:function(v){return v;}}},
         {type:"line",label:"부적합률",data:analysis.itemStats.map(function(d){return d.failRate;}),
           borderColor:"#f87171",backgroundColor:"transparent",borderWidth:2,
           pointRadius:5,pointBackgroundColor:"#f87171",tension:0.3,yAxisID:"y2",
           datalabels:{color:"#fca5a5",font:{size:10,weight:"bold"},
-            backgroundColor:"#0f172a99",borderRadius:3,padding:{left:3,right:3,top:1,bottom:1},
-            anchor:"end",align:"top",offset:6,
+            backgroundColor:"#0f172a",borderRadius:3,
+            padding:{left:3,right:3,top:1,bottom:1},
+            anchor:"end",align:"top",offset:8,
             formatter:function(v){return v+"%";}}}
       ]},
     options:{responsive:true,maintainAspectRatio:false,
-      layout:{padding:{top:36}},
+      layout:{padding:{top:40,right:10}},
       plugins:{legend:{display:false},
         tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",
           borderColor:"#334155",borderWidth:1}},
       scales:{
         x:{ticks:{color:"#94a3b8",font:{size:11},maxRotation:30},grid:{color:"#334155"}},
-        // 막대를 하단 60% 영역에 가둠: max를 실제 최대값의 2배로 설정
-        y1:{position:"left",min:0,max:maxTotal*2.2,
-          ticks:{color:"#60a5fa",font:{size:10}},grid:{color:"#334155"}},
-        // 선(부적합률)은 0~100 그대로 — 자연히 상단에 위치
+        y1:{position:"left",
+          min:0,
+          max:Math.ceil(maxTotal*3),
+          ticks:{color:"#60a5fa",font:{size:10},
+            callback:function(v){return Number.isInteger(v)?v:"";}},
+          grid:{color:"#334155"}},
         y2:{position:"right",min:0,max:100,
           ticks:{color:"#f87171",font:{size:10},callback:function(v){return v+"%";}},
           grid:{drawOnChartArea:false}}}}
