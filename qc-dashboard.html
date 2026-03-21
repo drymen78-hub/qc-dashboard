@@ -327,20 +327,18 @@ function App() {
   var pieConfig = analysis ? makePieConfig(analysis.pass, analysis.fail) : null;
 
   var itemConfig = (analysis && analysis.itemStats.length > 0)
-    ? makeComboConfig(
+    ? makeItemConfig(
         analysis.itemStats.map(function(d) { return d.name; }),
         analysis.itemStats.map(function(d) { return d.total; }),
-        analysis.itemStats.map(function(d) { return d.failRate; }),
-        "총건수", "부적합률"
+        analysis.itemStats.map(function(d) { return d.failRate; })
       )
     : null;
 
   var trendConfig = records.length > 0
-    ? makeComboConfig(
+    ? makeItemConfig(
         records.map(function(r) { return r.label; }),
         records.map(function(r) { return r.total; }),
-        records.map(function(r) { return r.failRate; }),
-        "총QC건수", "부적합률"
+        records.map(function(r) { return r.failRate; })
       )
     : null;
 
