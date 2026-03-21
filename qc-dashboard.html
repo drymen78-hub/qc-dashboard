@@ -21,55 +21,54 @@ input[type=number]{-moz-appearance:textfield}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-var useState=React.useState, useEffect=React.useEffect, useRef=React.useRef;
+var useState=React.useState,useEffect=React.useEffect,useRef=React.useRef;
 Chart.register(ChartDataLabels);
 
 var GAS_URL="https://script.google.com/macros/s/AKfycbyQSpwiQBOuLF2oaOaW-Ka35XFmAg9Yp4vmh4P1ByPMUerACu6Ou56-1x4JEuT4_zE8Jw/exec";
 var DEFECT_TYPES=["얼룩","손상","먼지"];
 var DEFECT_COLORS=["#f87171","#fbbf24","#a78bfa","#94a3b8"];
 
-function st(v){return (v==null?"":String(v)).trim();}
+function st(v){return(v==null?"":String(v)).trim();}
 function isPass(v){var t=st(v).replace(/\s/g,"");return t.includes("적합")&&!t.includes("부적합");}
 function isFail(v){var t=st(v).replace(/\s/g,"");return t.includes("부적합")||t.includes("불합격");}
 function isY(v){return st(v)==="Y";}
 function isN(v){return st(v)==="N";}
-function fuzzy(cols,t){return cols.find(function(c){return st(c).replace(/\s/g,"")=== t.replace(/\s/g,"");}) || cols.find(function(c){return st(c).includes(t);});}
+function fuzzy(cols,t){return cols.find(function(c){return st(c).replace(/\s/g,"")=== t.replace(/\s/g,"");})||cols.find(function(c){return st(c).includes(t);});}
 function pct(a,b){return b>0?+(a/b*100).toFixed(1):0;}
 
-// ── 차트 컴포넌트 ──────────────────────────────────────────────────────────────
+// ── 차트 컴포넌트 ─────────────────────────────────────────────────────────────
 function ChartBox(props){
   var ref=useRef(null);
   var chartRef=useRef(null);
+  var key=JSON.stringify(props.config);
   useEffect(function(){
-    if(!ref.current||!props.config) return;
+    if(!ref.current||!props.config)return;
     if(chartRef.current){chartRef.current.destroy();chartRef.current=null;}
-    chartRef.current=new Chart(ref.current, props.config);
+    chartRef.current=new Chart(ref.current,props.config);
     return function(){if(chartRef.current){chartRef.current.destroy();chartRef.current=null;}};
-  }, [JSON.stringify(props.config)]);
-  return React.createElement("div",{style:{position:"relative",height:props.height||"200px"}},
+  },[key]);
+  return React.createElement("div",{style:{position:"relative",height:props.height||"200px",width:"100%"}},
     React.createElement("canvas",{ref:ref})
   );
 }
 
-// ── 메인 앱 ───────────────────────────────────────────────────────────────────
 function App(){
   var r;
-  r=useState(null);          var analysis=r[0],setAnalysis=r[1];
-  r=useState("");            var fileName=r[0],setFileName=r[1];
-  r=useState(new Date().toISOString().slice(0,10)); var reportDate=r[0],setReportDate=r[1];
-  r=useState({얼룩:"",손상:"",먼지:""}); var defects=r[0],setDefects=r[1];
-  r=useState(false);         var defectSaved=r[0],setDefectSaved=r[1];
-  r=useState(null);          var defectData=r[0],setDefectData=r[1];
-  r=useState([]);            var records=r[0],setRecords=r[1];
-  r=useState(false);         var saved=r[0],setSaved=r[1];
-  r=useState(false);         var saving=r[0],setSaving=r[1];
-  r=useState("");            var saveMsg=r[0],setSaveMsg=r[1];
-  r=useState("");            var error=r[0],setError=r[1];
+  r=useState(null);var analysis=r[0],setAnalysis=r[1];
+  r=useState("");var fileName=r[0],setFileName=r[1];
+  r=useState(new Date().toISOString().slice(0,10));var reportDate=r[0],setReportDate=r[1];
+  r=useState({얼룩:"",손상:"",먼지:""});var defects=r[0],setDefects=r[1];
+  r=useState(false);var defectSaved=r[0],setDefectSaved=r[1];
+  r=useState(null);var defectData=r[0],setDefectData=r[1];
+  r=useState([]);var records=r[0],setRecords=r[1];
+  r=useState(false);var saved=r[0],setSaved=r[1];
+  r=useState(false);var saving=r[0],setSaving=r[1];
+  r=useState("");var saveMsg=r[0],setSaveMsg=r[1];
+  r=useState("");var error=r[0],setError=r[1];
 
   var mon=(reportDate||"").slice(5,7).replace(/^0/,"");
   var day=(reportDate||"").slice(8,10).replace(/^0/,"");
 
-  // Sheets 불러오기
   useEffect(function(){
     fetch(GAS_URL)
       .then(function(res){return res.json();})
@@ -87,8 +86,8 @@ function App(){
   },[]);
 
   function parseFile(file){
-    setFileName(file.name); setError(""); setDefectSaved(false); setDefectData(null);
-    setSaved(false); setSaveMsg(""); setDefects({얼룩:"",손상:"",먼지:""}); setAnalysis(null);
+    setFileName(file.name);setError("");setDefectSaved(false);setDefectData(null);
+    setSaved(false);setSaveMsg("");setDefects({얼룩:"",손상:"",먼지:""});setAnalysis(null);
     var reader=new FileReader();
     reader.onload=function(e){
       try{
@@ -120,7 +119,7 @@ function App(){
             if(!b)return;
             if(isPass(r[rC]))sm[b].pass++;else if(isFail(r[rC]))sm[b].fail++;
           });
-          stainStats=["Y","N"].map(function(k){return{name:k==="Y"?"Y (얼룩있음)":"N (얼룩없음)",key:k,
+          stainStats=["Y","N"].map(function(k){return{name:k==="Y"?"Y":"N",key:k,
             pass:sm[k].pass,fail:sm[k].fail,total:sm[k].pass+sm[k].fail,
             failRate:pct(sm[k].fail,sm[k].pass+sm[k].fail)};});
         }
@@ -132,13 +131,12 @@ function App(){
 
   function handleSave(){
     if(!analysis||!reportDate)return;
-    setSaving(true); setSaveMsg("");
+    setSaving(true);setSaveMsg("");
     var defectFilled={};
-    if(defectSaved&&defectData) defectData.forEach(function(x){defectFilled["defect_"+x.name]=x.value;});
+    if(defectSaved&&defectData)defectData.forEach(function(x){defectFilled["defect_"+x.name]=x.value;});
     var failRate=pct(analysis.fail,analysis.total);
     var payload=Object.assign({date:reportDate,total:analysis.total,pass:analysis.pass,
       fail:analysis.fail,failRate:failRate},defectFilled);
-    // 로컬 저장
     var label=reportDate.slice(5).replace("-","/");
     var newRec={date:reportDate,label:label,total:analysis.total,pass:analysis.pass,
       fail:analysis.fail,failRate:failRate};
@@ -147,7 +145,6 @@ function App(){
     updated.sort(function(a,b){return a.date.localeCompare(b.date);});
     try{localStorage.setItem("qc_recs",JSON.stringify(updated));}catch{}
     setRecords(updated);
-    // 입고팀과 동일 방식으로 Sheets 저장
     fetch(GAS_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(payload)})
       .then(function(){setSaving(false);setSaved(true);setSaveMsg("✓ 저장 완료");})
       .catch(function(){setSaving(false);setSaved(true);setSaveMsg("✓ 저장 완료");});
@@ -159,7 +156,7 @@ function App(){
     var data=DEFECT_TYPES.map(function(t,i){return{name:t,value:Number(defects[t])||0,color:DEFECT_COLORS[i]};});
     if(etc>0)data.push({name:"기타",value:etc,color:DEFECT_COLORS[3]});
     data=data.filter(function(d){return d.value>0;});
-    setDefectData(data); setDefectSaved(true);
+    setDefectData(data);setDefectSaved(true);
   }
 
   var failRate=analysis?pct(analysis.fail,analysis.total):0;
@@ -167,60 +164,85 @@ function App(){
   var entered=DEFECT_TYPES.reduce(function(s,t){return s+(Number(defects[t])||0);},0);
   var etc=analysis?Math.max(0,analysis.fail-entered):0;
 
-  // ── 차트 config ──────────────────────────────────────────────────────────────
+  // ── 차트 configs ─────────────────────────────────────────────────────────────
+
+  // 원그래프 — 정사각형 컨테이너로 찌그러짐 방지
   var pieConfig=analysis?{
     type:"doughnut",
-    data:{labels:["적합","부적합"],datasets:[{data:[analysis.pass,analysis.fail],
-      backgroundColor:["#4ade80","#f87171"],borderColor:"#0f172a",borderWidth:3}]},
-    options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},
-        datalabels:{color:"#0f172a",font:{size:11,weight:"bold"},
+    data:{labels:["적합","부적합"],
+      datasets:[{data:[analysis.pass,analysis.fail],
+        backgroundColor:["#4ade80","#f87171"],borderColor:"#1e293b",borderWidth:4}]},
+    options:{responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{position:"bottom",labels:{color:"#94a3b8",font:{size:12},padding:12}},
+        datalabels:{color:"#fff",font:{size:13,weight:"bold"},
           formatter:function(v,ctx){
             var tot=ctx.dataset.data.reduce(function(a,b){return a+b;},0);
-            return ctx.chart.data.labels[ctx.dataIndex]+"\n"+(tot>0?(v/tot*100).toFixed(0):0)+"%";
+            return tot>0?(v/tot*100).toFixed(0)+"%" :"";
           }}}}
   }:null;
 
+  // 얼룩체크 — 가로 바차트로 변경 (더 명확하게)
   var stainConfig=analysis&&analysis.stainStats?{
     type:"bar",
-    data:{labels:analysis.stainStats.map(function(s){return s.key;}),
-      datasets:[{data:analysis.stainStats.map(function(s){return s.failRate;}),
-        backgroundColor:analysis.stainStats.map(function(s){return s.key==="Y"?"#f87171":"#4ade80";}),
-        borderRadius:6,borderSkipped:false}]},
+    data:{
+      labels:["적합","부적합"],
+      datasets:analysis.stainStats.map(function(s,i){return{
+        label:(s.key==="Y"?"얼룩있음(Y)":"얼룩없음(N)"),
+        data:[s.pass,s.fail],
+        backgroundColor:s.key==="Y"?"#f8717188":"#4ade8088",
+        borderColor:s.key==="Y"?"#f87171":"#4ade80",
+        borderWidth:2,borderRadius:4
+      };})
+    },
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},
-        datalabels:{color:"#f1f5f9",font:{size:12,weight:"bold"},anchor:"end",align:"start",
-          formatter:function(v){return v+"%";}}},
-      scales:{x:{ticks:{color:"#94a3b8",font:{size:11}},grid:{color:"#334155"}},
-        y:{display:false,max:100}}}
+      plugins:{
+        legend:{position:"top",labels:{color:"#94a3b8",font:{size:11},padding:8}},
+        datalabels:{color:"#f1f5f9",font:{size:11,weight:"bold"},anchor:"end",align:"start",
+          formatter:function(v){return v>0?v+"건":"";}},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",
+          borderColor:"#334155",borderWidth:1}
+      },
+      scales:{
+        x:{ticks:{color:"#94a3b8",font:{size:12}},grid:{color:"#334155"}},
+        y:{ticks:{color:"#64748b",font:{size:10}},grid:{color:"#334155"}}
+      }}
   }:null;
 
+  // 품목별 — 상단 여백 충분히, 숫자 겹침 방지
+  var maxTotal=analysis?Math.max.apply(null,analysis.itemStats.map(function(d){return d.total;})):1;
   var itemConfig=analysis&&analysis.itemStats.length>0?{
     type:"bar",
     data:{labels:analysis.itemStats.map(function(d){return d.name;}),
       datasets:[
         {type:"bar",label:"총건수",data:analysis.itemStats.map(function(d){return d.total;}),
-          backgroundColor:"#3b82f688",borderColor:"#60a5fa",borderWidth:2,borderRadius:4,yAxisID:"y1",
-          datalabels:{color:"#93c5fd",font:{size:10,weight:"bold"},anchor:"end",align:"top",
-            formatter:function(v){return v;}}},
+          backgroundColor:"#3b82f699",borderColor:"#60a5fa",borderWidth:2,borderRadius:4,yAxisID:"y1",
+          datalabels:{color:"#93c5fd",font:{size:10,weight:"bold"},anchor:"end",align:"top",offset:2,
+            formatter:function(v){return v;},
+            // 막대가 작으면 위, 크면 안으로
+            clamp:true}},
         {type:"line",label:"부적합률",data:analysis.itemStats.map(function(d){return d.failRate;}),
           borderColor:"#f87171",backgroundColor:"transparent",borderWidth:2,
           pointRadius:5,pointBackgroundColor:"#f87171",tension:0.3,yAxisID:"y2",
-          datalabels:{color:"#f87171",font:{size:10,weight:"bold"},anchor:"end",align:"top",offset:4,
+          datalabels:{color:"#fca5a5",font:{size:10,weight:"bold"},
+            backgroundColor:"#0f172a",borderRadius:3,padding:2,
+            anchor:"end",align:"top",offset:4,
             formatter:function(v){return v+"%";}}}
       ]},
     options:{responsive:true,maintainAspectRatio:false,
+      layout:{padding:{top:30}},
       plugins:{legend:{display:false},
         tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",
           borderColor:"#334155",borderWidth:1}},
       scales:{
         x:{ticks:{color:"#94a3b8",font:{size:11},maxRotation:30},grid:{color:"#334155"}},
-        y1:{position:"left",ticks:{color:"#60a5fa",font:{size:10}},grid:{color:"#334155"}},
+        y1:{position:"left",suggestedMax:maxTotal*1.3,
+          ticks:{color:"#60a5fa",font:{size:10}},grid:{color:"#334155"}},
         y2:{position:"right",min:0,max:100,
           ticks:{color:"#f87171",font:{size:10},callback:function(v){return v+"%";}},
           grid:{drawOnChartArea:false}}}}
   }:null;
 
+  // 부적합 유형
   var defectConfig=defectData&&defectData.length>0?{
     type:"bar",
     data:{labels:defectData.map(function(d){return d.name;}),
@@ -228,27 +250,32 @@ function App(){
         backgroundColor:defectData.map(function(d){return d.color;}),
         borderRadius:6,borderSkipped:false}]},
     options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,
+      layout:{padding:{right:120}},
       plugins:{legend:{display:false},
         datalabels:{color:"#f1f5f9",font:{size:12,weight:"bold"},anchor:"end",align:"right",
           formatter:function(v){return v+"건 ("+(analysis?pct(v,analysis.fail):0)+"%)";}}},
       scales:{x:{display:false},y:{ticks:{color:"#94a3b8",font:{size:12}},grid:{display:false}}}}
   }:null;
 
+  // 트렌드 — 막대 숫자 잘 보이게 상단 여백 확보
   var trendConfig=records.length>0?{
     type:"bar",
     data:{labels:records.map(function(r){return r.label;}),
       datasets:[
         {type:"bar",label:"총QC건수",data:records.map(function(r){return r.total;}),
-          backgroundColor:"#3b82f688",borderColor:"#60a5fa",borderWidth:2,borderRadius:4,yAxisID:"y1",
-          datalabels:{color:"#93c5fd",font:{size:10,weight:"bold"},anchor:"end",align:"top",
+          backgroundColor:"#3b82f699",borderColor:"#60a5fa",borderWidth:2,borderRadius:4,yAxisID:"y1",
+          datalabels:{color:"#93c5fd",font:{size:10,weight:"bold"},anchor:"end",align:"top",offset:2,
             formatter:function(v){return v;}}},
         {type:"line",label:"부적합률",data:records.map(function(r){return r.failRate;}),
           borderColor:"#f87171",backgroundColor:"transparent",borderWidth:2,
           pointRadius:5,pointBackgroundColor:"#f87171",tension:0.3,yAxisID:"y2",
-          datalabels:{color:"#f87171",font:{size:10,weight:"bold"},anchor:"end",align:"top",offset:4,
+          datalabels:{color:"#fca5a5",font:{size:10,weight:"bold"},
+            backgroundColor:"#0f172a",borderRadius:3,padding:2,
+            anchor:"end",align:"top",offset:4,
             formatter:function(v){return v+"%";}}}
       ]},
     options:{responsive:true,maintainAspectRatio:false,
+      layout:{padding:{top:30}},
       plugins:{legend:{display:false},
         tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",
           borderColor:"#334155",borderWidth:1}},
@@ -261,32 +288,40 @@ function App(){
   }:null;
 
   var C=React.createElement;
-  var card=function(children,extra){return C("div",{style:Object.assign({background:"#1e293b",borderRadius:10,padding:"14px 16px",marginBottom:12},extra||{})},children);};
+  var card=function(children,extra){
+    return C("div",{style:Object.assign({background:"#1e293b",borderRadius:10,
+      padding:"14px 16px",marginBottom:12},extra||{})},children);
+  };
+  var secLabel=function(txt){
+    return C("div",{style:{fontSize:12,fontWeight:600,color:"#94a3b8",marginBottom:10}},txt);
+  };
 
   return C("div",{style:{maxWidth:960,margin:"0 auto"}},
 
     // 타이틀
-    C("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,marginBottom:16}},
+    C("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",
+      flexWrap:"wrap",gap:10,marginBottom:16}},
       C("div",null,
-        C("h1",{style:{fontSize:18,fontWeight:700}},"야간책임운영실 ",
-          C("span",{style:{color:"#60a5fa"}},mon+"월"+day+"일")," QC 현황"),
+        C("h1",{style:{fontSize:18,fontWeight:700}},
+          "야간책임운영실 ",C("span",{style:{color:"#60a5fa"}},mon+"월"+day+"일")," QC 현황"),
         fileName?C("div",{style:{fontSize:11,color:"#475569",marginTop:2}},"📄 "+fileName):null
       ),
       C("div",{style:{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}},
         C("input",{type:"date",value:reportDate,onChange:function(e){setReportDate(e.target.value);},
-          style:{background:"#1e293b",border:"1px solid #334155",borderRadius:8,color:"#f1f5f9",padding:"6px 10px",fontSize:13,outline:"none"}}),
+          style:{background:"#1e293b",border:"1px solid #334155",borderRadius:8,color:"#f1f5f9",
+            padding:"6px 10px",fontSize:13,outline:"none"}}),
         analysis&&!saved?C("button",{onClick:handleSave,disabled:saving,
           style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:8,color:"#60a5fa",
             padding:"6px 14px",cursor:"pointer",fontSize:13}},saving?"저장 중...":"💾 실적 저장"):null,
         saveMsg?C("span",{style:{fontSize:12,color:"#4ade80"}},saveMsg):null,
-        analysis?C("button",{onClick:function(){setAnalysis(null);setFileName("");setDefectSaved(false);
-            setDefectData(null);setSaved(false);setSaveMsg("");setDefects({얼룩:"",손상:"",먼지:""});},
-          style:{background:"#1e293b",border:"1px solid #334155",borderRadius:8,color:"#64748b",
-            padding:"6px 12px",cursor:"pointer",fontSize:13}},"🔄"):null
+        analysis?C("button",{onClick:function(){setAnalysis(null);setFileName("");
+            setDefectSaved(false);setDefectData(null);setSaved(false);setSaveMsg("");
+            setDefects({얼룩:"",손상:"",먼지:""}); },
+          style:{background:"#1e293b",border:"1px solid #334155",borderRadius:8,
+            color:"#64748b",padding:"6px 12px",cursor:"pointer",fontSize:13}},"🔄"):null
       )
     ),
 
-    // 오류
     error?C("div",{style:{background:"#450a0a",border:"1px solid #f87171",borderRadius:8,
       padding:"10px 14px",color:"#fca5a5",marginBottom:12,fontSize:13}},error):null,
 
@@ -304,63 +339,52 @@ function App(){
         onChange:function(e){if(e.target.files[0])parseFile(e.target.files[0]);}})
     ):null,
 
-    // ── 대시보드 ────────────────────────────────────────────────────────────────
     analysis?C("div",null,
 
-      // KPI 카드
-      C("div",{style:{display:"flex",gap:10,flexWrap:"wrap",marginBottom:12}},
-        [["전체 QC",analysis.total.toLocaleString()+"건","#60a5fa"],
-         ["적합",analysis.pass.toLocaleString()+"건 ("+passRate+"%)","#4ade80"],
-         ["부적합",analysis.fail.toLocaleString()+"건 ("+failRate+"%)","#f87171"],
-         ["부적합률",failRate+"%","#fbbf24"]
-        ].map(function(k){
-          return C("div",{key:k[0],style:{background:"#1e293b",borderRadius:10,padding:"12px 16px",flex:1,minWidth:110}},
-            C("div",{style:{fontSize:11,color:"#64748b",marginBottom:4}},k[0]),
-            C("div",{style:{fontSize:26,fontWeight:700,color:k[2],lineHeight:1}},k[1])
-          );
-        })
-      ),
+      // ── Row1: KPI 3개 + 원그래프 ───────────────────────────────────────────
+      C("div",{style:{display:"flex",gap:10,marginBottom:12,alignItems:"stretch"}},
 
-      // 파이 + 얼룩체크
-      C("div",{style:{display:"flex",gap:10,marginBottom:12,flexWrap:"wrap"}},
-        card(C("div",null,
-          C("div",{style:{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}},"적합 / 부적합"),
-          C(ChartBox,{config:pieConfig,height:"130px"})
-        ),{flex:"0 0 200px",marginBottom:0}),
-        analysis.stainStats?card(C("div",null,
-          C("div",{style:{fontSize:11,color:"#64748b",marginBottom:8,fontWeight:600}},"얼룩체크 Y/N → 부적합률"),
-          C("div",{style:{display:"flex",gap:10,alignItems:"center"}},
-            C("div",{style:{flex:"0 0 180px"}},C(ChartBox,{config:stainConfig,height:"120px"})),
-            C("div",{style:{display:"flex",flexDirection:"column",gap:8,flex:1}},
-              analysis.stainStats.map(function(st){
-                return C("div",{key:st.key,style:{background:"#0f172a",borderRadius:8,padding:"8px 12px"}},
-                  C("div",{style:{fontSize:10,color:"#64748b"}},st.name),
-                  C("div",{style:{fontSize:12}},
-                    "총 ",C("b",{style:{color:"#60a5fa"}},st.total),"건 ",
-                    C("span",{style:{color:"#4ade80"}},st.pass+"적합")," ",
-                    C("span",{style:{color:"#f87171"}},st.fail+"부적합")
-                  ),
-                  C("div",{style:{fontSize:14,fontWeight:700,color:st.failRate>10?"#f87171":"#4ade80"}},st.failRate+"%")
-                );
-              })
+        // KPI 3개 세로 배치
+        C("div",{style:{display:"flex",flexDirection:"column",gap:10,flex:1}},
+          [["전체 QC 수량",analysis.total.toLocaleString()+"건","#60a5fa"],
+           ["부적합",analysis.fail.toLocaleString()+"건","#f87171"],
+           ["부적합률",failRate+"%","#fbbf24"]
+          ].map(function(k){
+            return C("div",{key:k[0],style:{background:"#1e293b",borderRadius:10,
+              padding:"14px 16px",flex:1}},
+              C("div",{style:{fontSize:11,color:"#64748b",marginBottom:4}},k[0]),
+              C("div",{style:{fontSize:28,fontWeight:700,color:k[2],lineHeight:1}},k[1])
+            );
+          })
+        ),
+
+        // 원그래프 — 정사각형 유지
+        C("div",{style:{background:"#1e293b",borderRadius:10,padding:"14px 16px",
+          width:220,flexShrink:0}},
+          secLabel("적합 / 부적합"),
+          C("div",{style:{position:"relative",width:"100%",paddingBottom:"100%"}},
+            C("div",{style:{position:"absolute",top:0,left:0,right:0,bottom:0}},
+              C(ChartBox,{config:pieConfig,height:"100%"})
             )
           )
-        ),{flex:1,marginBottom:0}):null
+        )
       ),
 
-      // 품목별
+      // ── Row2: 품목별 현황 ──────────────────────────────────────────────────
       analysis.itemStats.length>0?card(C("div",null,
         C("div",{style:{display:"flex",alignItems:"center",gap:14,marginBottom:10}},
-          C("div",{style:{fontSize:12,fontWeight:600,color:"#94a3b8"}},"품목별 QC 현황"),
-          C("div",{style:{fontSize:10,color:"#64748b"}},
-            C("span",{style:{display:"inline-block",width:8,height:8,background:"#60a5fa",borderRadius:2,marginRight:3,verticalAlign:"middle"}}),"총건수(좌) ",
-            C("span",{style:{display:"inline-block",width:12,height:2,background:"#f87171",margin:"0 3px",verticalAlign:"middle"}}),"부적합률%(우)"
+          secLabel("품목별 QC 현황"),
+          C("div",{style:{fontSize:10,color:"#64748b",marginBottom:10}},
+            C("span",{style:{display:"inline-block",width:8,height:8,background:"#60a5fa",
+              borderRadius:2,marginRight:3,verticalAlign:"middle"}}),"총건수(좌) ",
+            C("span",{style:{display:"inline-block",width:12,height:2,background:"#f87171",
+              margin:"0 3px",verticalAlign:"middle"}}),"부적합률%(우)"
           )
         ),
-        C(ChartBox,{config:itemConfig,height:"240px"})
+        C(ChartBox,{config:itemConfig,height:"260px"})
       )):null,
 
-      // 부적합 유형
+      // ── Row3: 부적합 유형 입력 ─────────────────────────────────────────────
       card(C("div",null,
         C("div",{style:{fontSize:12,fontWeight:600,color:"#94a3b8",marginBottom:8}},
           "부적합 유형 입력 ",
@@ -370,48 +394,73 @@ function App(){
         !defectSaved?C("div",null,
           C("div",{style:{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}},
             DEFECT_TYPES.map(function(t){
-              return C("div",{key:t,style:{display:"flex",alignItems:"center",gap:6,background:"#0f172a",borderRadius:8,padding:"8px 12px"}},
+              return C("div",{key:t,style:{display:"flex",alignItems:"center",gap:6,
+                background:"#0f172a",borderRadius:8,padding:"8px 12px"}},
                 C("span",{style:{fontSize:13,color:"#e2e8f0",minWidth:32}},t),
                 C("input",{type:"number",min:"0",value:defects[t],
-                  onChange:function(e){
-                    var v=e.target.value;
-                    setDefects(function(prev){return Object.assign({},prev,{[t]:v});});
-                  },
+                  onChange:function(e){var v=e.target.value;
+                    setDefects(function(p){return Object.assign({},p,{[t]:v});});},
                   style:{width:60,textAlign:"center",color:"#f87171",background:"#1e293b",
                     border:"1px solid #334155",borderRadius:6,padding:"5px 8px",fontSize:13,outline:"none"}}),
                 C("span",{style:{fontSize:11,color:"#475569"}},"건")
               );
-            }).concat([
-              C("div",{key:"etc",style:{display:"flex",alignItems:"center",gap:6,background:"#0f172a",borderRadius:8,padding:"8px 12px",opacity:0.6}},
-                C("span",{style:{fontSize:13,color:"#94a3b8",minWidth:32}},"기타"),
-                C("span",{style:{width:60,textAlign:"center",color:"#94a3b8",fontSize:13}},etc),
-                C("span",{style:{fontSize:11,color:"#475569"}},"건 (자동)")
-              )
-            ])
+            }).concat([C("div",{key:"etc",style:{display:"flex",alignItems:"center",gap:6,
+              background:"#0f172a",borderRadius:8,padding:"8px 12px",opacity:0.6}},
+              C("span",{style:{fontSize:13,color:"#94a3b8",minWidth:32}},"기타"),
+              C("span",{style:{width:60,textAlign:"center",color:"#94a3b8",fontSize:13}},etc),
+              C("span",{style:{fontSize:11,color:"#475569"}},"건 (자동)")
+            )])
           ),
           C("button",{onClick:doSaveDefects,
-            style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:8,color:"#60a5fa",
-              padding:"7px 18px",cursor:"pointer",fontSize:13}},"확인")
+            style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:8,
+              color:"#60a5fa",padding:"7px 18px",cursor:"pointer",fontSize:13}},"확인")
         ):C("div",null,
-          defectData?C(ChartBox,{config:defectConfig,height:(Math.max(100,defectData.length*40))+"px"}):null,
+          defectData&&defectData.length>0?C(ChartBox,{config:defectConfig,
+            height:(Math.max(100,defectData.length*44))+"px"}):null,
           C("button",{onClick:function(){setDefectSaved(false);},
-            style:{background:"#1e293b",border:"1px solid #334155",borderRadius:8,color:"#64748b",
-              padding:"5px 12px",cursor:"pointer",fontSize:11,marginTop:8}},"수정")
+            style:{background:"#1e293b",border:"1px solid #334155",borderRadius:8,
+              color:"#64748b",padding:"5px 12px",cursor:"pointer",fontSize:11,marginTop:8}},"수정")
         )
-      ))
+      )),
+
+      // ── Row4: 얼룩체크 ────────────────────────────────────────────────────
+      analysis.stainStats?card(C("div",null,
+        secLabel("얼룩체크 Y/N → 부적합 비교"),
+        C("div",{style:{display:"flex",gap:16,alignItems:"center"}},
+          C("div",{style:{flex:1}},
+            C(ChartBox,{config:stainConfig,height:"180px"})
+          ),
+          C("div",{style:{display:"flex",flexDirection:"column",gap:8,width:180,flexShrink:0}},
+            analysis.stainStats.map(function(s){
+              return C("div",{key:s.key,style:{background:"#0f172a",borderRadius:8,padding:"10px 14px"}},
+                C("div",{style:{fontSize:11,color:"#64748b",marginBottom:4}},
+                  s.key==="Y"?"얼룩 있음 (Y)":"얼룩 없음 (N)"),
+                C("div",{style:{fontSize:12,color:"#e2e8f0",marginBottom:2}},
+                  "총 ",C("b",{style:{color:"#60a5fa"}},s.total),"건"),
+                C("div",{style:{fontSize:11,color:"#4ade80"}},s.pass+"건 적합"),
+                C("div",{style:{fontSize:11,color:"#f87171"}},s.fail+"건 부적합"),
+                C("div",{style:{fontSize:16,fontWeight:700,marginTop:4,
+                  color:s.failRate>10?"#f87171":"#4ade80"}},s.failRate+"% 부적합")
+              );
+            })
+          )
+        )
+      )):null
 
     ):null,
 
-    // 트렌드
+    // ── 트렌드 ──────────────────────────────────────────────────────────────
     records.length>0?card(C("div",null,
       C("div",{style:{display:"flex",alignItems:"center",gap:14,marginBottom:8}},
         C("div",{style:{fontSize:12,fontWeight:600,color:"#94a3b8"}},"날짜별 QC 실적 추이"),
         C("div",{style:{fontSize:10,color:"#64748b"}},
-          C("span",{style:{display:"inline-block",width:8,height:8,background:"#60a5fa",borderRadius:2,marginRight:3,verticalAlign:"middle"}}),"총QC건수(좌) ",
-          C("span",{style:{display:"inline-block",width:12,height:2,background:"#f87171",margin:"0 3px",verticalAlign:"middle"}}),"부적합률%(우)"
+          C("span",{style:{display:"inline-block",width:8,height:8,background:"#60a5fa",
+            borderRadius:2,marginRight:3,verticalAlign:"middle"}}),"총QC건수(좌) ",
+          C("span",{style:{display:"inline-block",width:12,height:2,background:"#f87171",
+            margin:"0 3px",verticalAlign:"middle"}}),"부적합률%(우)"
         )
       ),
-      C(ChartBox,{config:trendConfig,height:"180px"})
+      C(ChartBox,{config:trendConfig,height:"200px"})
     )):null
 
   );
