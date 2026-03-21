@@ -8,7 +8,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f172a;color:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;padding:12px}
@@ -19,25 +20,11 @@ input[type=number]{-moz-appearance:textfield}
 <body>
 <div id="root"></div>
 <script type="text/babel">
-
 var useState  = React.useState;
 var useEffect = React.useEffect;
+var useRef    = React.useRef;
 var CE        = React.createElement;
-
-var RC             = Recharts;
-var ComposedChart  = RC.ComposedChart;
-var Bar            = RC.Bar;
-var Line           = RC.Line;
-var XAxis          = RC.XAxis;
-var YAxis          = RC.YAxis;
-var CartesianGrid  = RC.CartesianGrid;
-var Tooltip        = RC.Tooltip;
-var ResponsiveContainer = RC.ResponsiveContainer;
-var LabelList      = RC.LabelList;
-var PieChart       = RC.PieChart;
-var Pie            = RC.Pie;
-var Cell           = RC.Cell;
-var Legend         = RC.Legend;
+Chart.register(ChartDataLabels);
 
 var GAS_URL = "https://script.google.com/macros/s/AKfycbyQSpwiQBOuLF2oaOaW-Ka35XFmAg9Yp4vmh4P1ByPMUerACu6Ou56-1x4JEuT4_zE8Jw/exec";
 var DEFECT_TYPES  = ["얼룩","손상","먼지"];
@@ -52,31 +39,171 @@ function fuzzy(cols,t){
 }
 function pct(a,b){ return b>0?+(a/b*100).toFixed(1):0; }
 
-// 품목별 막대 위 숫자
-function ItemBarLabel(props){
-  var x=props.x, y=props.y, width=props.width, value=props.value;
-  if(!value) return null;
-  return CE("text",{ x:x+width/2, y:y-6, fill:"#93c5fd", textAnchor:"middle", fontSize:11, fontWeight:"bold" }, value+"건");
-}
-// 품목별 선 숫자
-function ItemLineLabel(props){
-  var x=props.x, y=props.y, value=props.value;
-  if(value===undefined||value===null) return null;
-  return CE("text",{ x:x, y:y-10, fill:"#f87171", textAnchor:"middle", fontSize:11, fontWeight:"bold" }, value+"%");
-}
-// 트렌드 막대 위 숫자
-function TrendBarLabel(props){
-  var x=props.x, y=props.y, width=props.width, value=props.value;
-  if(!value) return null;
-  return CE("text",{ x:x+width/2, y:y-6, fill:"#93c5fd", textAnchor:"middle", fontSize:12, fontWeight:"bold" }, value+"건");
-}
-// 트렌드 선 숫자
-function TrendLineLabel(props){
-  var x=props.x, y=props.y, value=props.value;
-  if(value===undefined||value===null) return null;
-  return CE("text",{ x:x, y:y-10, fill:"#f87171", textAnchor:"middle", fontSize:12, fontWeight:"bold" }, value+"%");
+// ── ChartBox ──────────────────────────────────────────────────────────────────
+function ChartBox(props){
+  var canvasRef = useRef(null);
+  var chartRef  = useRef(null);
+  var key = JSON.stringify(props.config);
+  useEffect(function(){
+    if(!canvasRef.current||!props.config) return;
+    if(chartRef.current){ chartRef.current.destroy(); chartRef.current=null; }
+    chartRef.current = new Chart(canvasRef.current, props.config);
+    return function(){
+      if(chartRef.current){ chartRef.current.destroy(); chartRef.current=null; }
+    };
+  },[key]);
+  return CE("div",{style:{position:"relative",height:props.height||"200px",width:"100%"}},
+    CE("canvas",{ref:canvasRef})
+  );
 }
 
+// ── 품목별 차트: y2 min=-150 으로 선을 막대 위로 올림 ─────────────────────────
+function makeItemConfig(labels, barData, lineData){
+  var maxBar = Math.max.apply(null, barData.concat([1]));
+  return {
+    type:"bar",
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          type:"bar", label:"총건수", data:barData,
+          backgroundColor:"#3b82f69a", borderColor:"#60a5fa", borderWidth:2, borderRadius:4,
+          yAxisID:"y1",
+          datalabels:{
+            color:"#f1f5f9", font:{size:11,weight:"bold"},
+            anchor:"center", align:"center",
+            formatter:function(v){ return v>0?v.toLocaleString()+"건":""; }
+          }
+        },
+        {
+          type:"line", label:"부적합률", data:lineData,
+          borderColor:"#f87171", backgroundColor:"transparent",
+          borderWidth:2, pointRadius:5, pointBackgroundColor:"#f87171", tension:0.3,
+          yAxisID:"y2",
+          datalabels:{
+            color:"#f87171", font:{size:11,weight:"bold"},
+            anchor:"end", align:"top", offset:4,
+            formatter:function(v){ return v+"%"; }
+          }
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      layout:{padding:{top:28,right:8}},
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1}
+      },
+      scales:{
+        x:{
+          ticks:{color:"#94a3b8",font:{size:10},maxRotation:0},
+          grid:{color:"#334155"}
+        },
+        y1:{
+          position:"left", min:0, max:Math.ceil(maxBar*1.4),
+          ticks:{color:"#60a5fa",font:{size:10},maxTicksLimit:5,
+            callback:function(v){ return Number.isInteger(v)?v.toLocaleString():""; }},
+          grid:{color:"#334155"}
+        },
+        y2:{
+          position:"right", min:-150, max:100,
+          ticks:{color:"#f87171",font:{size:10},
+            callback:function(v){ return v>=0?v+"%":""; }},
+          grid:{drawOnChartArea:false}
+        }
+      }
+    }
+  };
+}
+
+// ── 트렌드 차트: y2 0~100, 선이 막대 안 통과, 숫자는 포인트 위 ──────────────
+function makeTrendConfig(labels, barData, lineData){
+  var maxBar = Math.max.apply(null, barData.concat([1]));
+  return {
+    type:"bar",
+    data:{
+      labels:labels,
+      datasets:[
+        {
+          type:"bar", label:"총QC건수", data:barData,
+          backgroundColor:"#3b82f69a", borderColor:"#60a5fa", borderWidth:2, borderRadius:4,
+          yAxisID:"y1",
+          datalabels:{
+            color:"#93c5fd", font:{size:12,weight:"bold"},
+            anchor:"end", align:"top", offset:2,
+            formatter:function(v){ return v>0?v.toLocaleString()+"건":""; }
+          }
+        },
+        {
+          type:"line", label:"부적합률", data:lineData,
+          borderColor:"#f87171", backgroundColor:"transparent",
+          borderWidth:2, pointRadius:5, pointBackgroundColor:"#f87171", tension:0.3,
+          yAxisID:"y2",
+          datalabels:{
+            color:"#f87171", font:{size:12,weight:"bold"},
+            anchor:"end", align:"top", offset:4,
+            formatter:function(v){ return v+"%"; }
+          }
+        }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      layout:{padding:{top:32,right:8}},
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1}
+      },
+      scales:{
+        x:{
+          ticks:{color:"#94a3b8",font:{size:12}},
+          grid:{color:"#334155"}
+        },
+        y1:{
+          position:"left", min:0, max:Math.ceil(maxBar*1.4),
+          ticks:{color:"#60a5fa",font:{size:11},maxTicksLimit:5,
+            callback:function(v){ return Number.isInteger(v)?v.toLocaleString():""; }},
+          grid:{color:"#334155"}
+        },
+        y2:{
+          position:"right", min:0, max:100,
+          ticks:{color:"#f87171",font:{size:11},
+            callback:function(v){ return v+"%"; }},
+          grid:{drawOnChartArea:false}
+        }
+      }
+    }
+  };
+}
+
+// ── 파이차트 config ───────────────────────────────────────────────────────────
+function makePieConfig(pass, fail){
+  return {
+    type:"doughnut",
+    data:{
+      labels:["적합","부적합"],
+      datasets:[{data:[pass,fail],backgroundColor:["#4ade80","#f87171"],borderColor:"#1e293b",borderWidth:3}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:true,
+      plugins:{
+        legend:{position:"bottom",labels:{color:"#94a3b8",font:{size:11},padding:8}},
+        datalabels:{
+          color:"#fff", font:{size:13,weight:"bold"},
+          formatter:function(v,ctx){
+            var tot=ctx.dataset.data.reduce(function(a,b){ return a+b; },0);
+            return tot>0?(v/tot*100).toFixed(0)+"%":"";
+          }
+        }
+      }
+    }
+  };
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
 function App(){
   var s;
   s=useState(null);   var analysis=s[0];    var setAnalysis=s[1];
@@ -102,8 +229,8 @@ function App(){
           .filter(function(r){ return r[0]&&r[0]!=="날짜"; })
           .map(function(r){
             var raw=st(r[0]).slice(0,10);
-            return { date:raw, label:raw.slice(5).replace("-","/"),
-              total:Number(r[1]), pass:Number(r[2]), fail:Number(r[3]), failRate:Number(r[4]) };
+            return {date:raw,label:raw.slice(5).replace("-","/"),
+              total:Number(r[1]),pass:Number(r[2]),fail:Number(r[3]),failRate:Number(r[4])};
           })
           .sort(function(a,b){ return a.date.localeCompare(b.date); });
         setRecords(recs);
@@ -127,7 +254,7 @@ function App(){
         var cols=Object.keys(rows[0]);
         var rC=fuzzy(cols,"품질검사결과");
         var iC=fuzzy(cols,"품목명")||fuzzy(cols,"중분류");
-        var total=rows.length, pass=0, fail=0;
+        var total=rows.length,pass=0,fail=0;
         rows.forEach(function(r){ if(isPass(r[rC]))pass++; else if(isFail(r[rC]))fail++; });
         var iMap={};
         rows.forEach(function(r){
@@ -136,8 +263,8 @@ function App(){
           if(isPass(r[rC]))iMap[item].pass++; else if(isFail(r[rC]))iMap[item].fail++;
         });
         var itemStats=Object.entries(iMap)
-          .map(function(en){ return { name:en[0], pass:en[1].pass, fail:en[1].fail,
-            total:en[1].pass+en[1].fail, failRate:pct(en[1].fail,en[1].pass+en[1].fail) }; })
+          .map(function(en){ return {name:en[0],pass:en[1].pass,fail:en[1].fail,
+            total:en[1].pass+en[1].fail,failRate:pct(en[1].fail,en[1].pass+en[1].fail)}; })
           .sort(function(a,b){ return b.total-a.total; }).slice(0,12);
         setAnalysis({total:total,pass:pass,fail:fail,itemStats:itemStats});
       }catch(err){ setError("파싱 오류: "+err.message); }
@@ -155,8 +282,7 @@ function App(){
     var newRec={date:reportDate,label:reportDate.slice(5).replace("-","/"),
       total:analysis.total,pass:analysis.pass,fail:analysis.fail,failRate:fr};
     var updated=records.filter(function(r){ return r.date!==reportDate; });
-    updated.push(newRec);
-    updated.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    updated.push(newRec); updated.sort(function(a,b){ return a.date.localeCompare(b.date); });
     try{ localStorage.setItem("qc_recs",JSON.stringify(updated)); }catch(e){}
     setRecords(updated);
     fetch(GAS_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(payload)})
@@ -173,16 +299,25 @@ function App(){
     setDefectData(data); setDefectSaved(true);
   }
 
-  var failRate=analysis?pct(analysis.fail,analysis.total):0;
-  var entered=DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(defects[t])||0); },0);
-  var etc=analysis?Math.max(0,analysis.fail-entered):0;
-  var maxItem=analysis&&analysis.itemStats.length>0?Math.max.apply(null,analysis.itemStats.map(function(d){ return d.total; })):1;
-  var maxTrend=records.length>0?Math.max.apply(null,records.map(function(r){ return r.total; })):1;
+  var failRate = analysis?pct(analysis.fail,analysis.total):0;
+  var entered  = DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(defects[t])||0); },0);
+  var etc      = analysis?Math.max(0,analysis.fail-entered):0;
+
+  var pieConfig   = analysis?makePieConfig(analysis.pass,analysis.fail):null;
+  var itemConfig  = (analysis&&analysis.itemStats.length>0)
+    ? makeItemConfig(
+        analysis.itemStats.map(function(d){ return d.name; }),
+        analysis.itemStats.map(function(d){ return d.total; }),
+        analysis.itemStats.map(function(d){ return d.failRate; })
+      ) : null;
+  var trendConfig = records.length>0
+    ? makeTrendConfig(
+        records.map(function(r){ return r.label; }),
+        records.map(function(r){ return r.total; }),
+        records.map(function(r){ return r.failRate; })
+      ) : null;
 
   var CARD={background:"#1e293b",borderRadius:8,padding:"10px 12px",marginBottom:8};
-
-  var tooltipStyle={contentStyle:{background:"#1e293b",border:"1px solid #334155",color:"#f1f5f9"},
-    labelStyle:{color:"#94a3b8"},itemStyle:{color:"#f1f5f9"}};
 
   return CE("div",{style:{maxWidth:960,margin:"0 auto"}},
 
@@ -210,7 +345,6 @@ function App(){
 
     error?CE("div",{style:{background:"#450a0a",border:"1px solid #f87171",borderRadius:6,padding:"8px 12px",color:"#fca5a5",marginBottom:8,fontSize:13}},error):null,
 
-    // 업로드
     !analysis?CE("div",{
       style:{border:"2px dashed #334155",borderRadius:12,padding:"32px 24px",textAlign:"center",cursor:"pointer",background:"#1e293b",marginBottom:8},
       onClick:function(){ document.getElementById("fi").click(); },
@@ -229,7 +363,6 @@ function App(){
       CE("div",{style:{display:"flex",gap:8,marginBottom:8,alignItems:"stretch"}},
         CE("div",{style:{display:"flex",flexDirection:"column",gap:8,flex:1}},
 
-          // KPI 3개
           CE("div",{style:{display:"flex",gap:8}},
             [["전체 QC",analysis.total.toLocaleString()+"건","#60a5fa"],
              ["부적합",analysis.fail.toLocaleString()+"건","#f87171"],
@@ -242,7 +375,6 @@ function App(){
             })
           ),
 
-          // 부적합 유형
           CE("div",{style:{display:"flex",gap:8,alignItems:"stretch"}},
             !defectSaved
               ? DEFECT_TYPES.map(function(t){
@@ -277,28 +409,16 @@ function App(){
           )
         ),
 
-        // 파이차트
         CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"10px 12px",width:170,flexShrink:0,display:"flex",flexDirection:"column"}},
           CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:4}},"적합 / 부적합"),
-          CE("div",{style:{flex:1}},
-            CE(ResponsiveContainer,{width:"100%",height:"100%"},
-              CE(PieChart,null,
-                CE(Pie,{data:[{name:"적합",value:analysis.pass},{name:"부적합",value:analysis.fail}],
-                  dataKey:"value",cx:"50%",cy:"50%",outerRadius:"70%",
-                  label:function(p){ return (p.percent*100).toFixed(0)+"%"; },
-                  labelLine:false},
-                  CE(Cell,{key:"pass",fill:"#4ade80"}),
-                  CE(Cell,{key:"fail",fill:"#f87171"})
-                ),
-                CE(Legend,{wrapperStyle:{fontSize:11,color:"#94a3b8"}})
-              )
-            )
+          CE("div",{style:{position:"relative",flex:1}},
+            CE(ChartBox,{config:pieConfig,height:"100%"})
           )
         )
       ),
 
-      // Row2: 품목별 — y2 min=-150 으로 선을 위로 올림
-      analysis.itemStats.length>0?CE("div",{style:CARD},
+      // Row2: 품목별
+      (analysis.itemStats.length>0)?CE("div",{style:CARD},
         CE("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:6}},
           CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8"}},"품목별 QC 현황"),
           CE("div",{style:{fontSize:11,color:"#64748b",display:"flex",gap:8}},
@@ -306,25 +426,10 @@ function App(){
             CE("span",null,CE("span",{style:{display:"inline-block",width:10,height:2,background:"#f87171",marginRight:2,verticalAlign:"middle"}}),"부적합률%(우)")
           )
         ),
-        CE(ResponsiveContainer,{width:"100%",height:220},
-          CE(ComposedChart,{data:analysis.itemStats,margin:{top:28,right:40,left:0,bottom:40}},
-            CE(CartesianGrid,{stroke:"#334155"}),
-            CE(XAxis,{dataKey:"name",tick:{fill:"#94a3b8",fontSize:10},angle:0,textAnchor:"middle",interval:0}),
-            CE(YAxis,{yAxisId:"y1",orientation:"left",domain:[0,Math.ceil(maxItem*1.4)],tick:{fill:"#60a5fa",fontSize:10}}),
-            CE(YAxis,{yAxisId:"y2",orientation:"right",domain:[-150,100],tick:{fill:"#f87171",fontSize:10},
-              tickFormatter:function(v){ return v>=0?v+"%":""; }}),
-            CE(Tooltip,tooltipStyle),
-            CE(Bar,{yAxisId:"y1",dataKey:"total",fill:"#3b82f69a",stroke:"#60a5fa",strokeWidth:2,radius:[4,4,0,0]},
-              CE(LabelList,{content:CE(ItemBarLabel)})
-            ),
-            CE(Line,{yAxisId:"y2",type:"monotone",dataKey:"failRate",stroke:"#f87171",strokeWidth:2,dot:{fill:"#f87171",r:4}},
-              CE(LabelList,{content:CE(ItemLineLabel)})
-            )
-          )
-        )
+        CE(ChartBox,{config:itemConfig,height:"220px"})
       ):null,
 
-      // Row3: 날짜별 트렌드 — y2 0~100, 선이 막대 안 통과
+      // Row3: 트렌드
       records.length>0?CE("div",{style:CARD},
         CE("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:6}},
           CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8"}},"날짜별 QC 실적 추이"),
@@ -333,45 +438,14 @@ function App(){
             CE("span",null,CE("span",{style:{display:"inline-block",width:10,height:2,background:"#f87171",marginRight:2,verticalAlign:"middle"}}),"부적합률%(우)")
           )
         ),
-        CE(ResponsiveContainer,{width:"100%",height:190},
-          CE(ComposedChart,{data:records,margin:{top:28,right:40,left:0,bottom:10}},
-            CE(CartesianGrid,{stroke:"#334155"}),
-            CE(XAxis,{dataKey:"label",tick:{fill:"#94a3b8",fontSize:12}}),
-            CE(YAxis,{yAxisId:"y1",orientation:"left",domain:[0,Math.ceil(maxTrend*1.4)],tick:{fill:"#60a5fa",fontSize:11}}),
-            CE(YAxis,{yAxisId:"y2",orientation:"right",domain:[0,100],tick:{fill:"#f87171",fontSize:11},
-              tickFormatter:function(v){ return v+"%"; }}),
-            CE(Tooltip,tooltipStyle),
-            CE(Bar,{yAxisId:"y1",dataKey:"total",fill:"#3b82f69a",stroke:"#60a5fa",strokeWidth:2,radius:[4,4,0,0]},
-              CE(LabelList,{content:CE(TrendBarLabel)})
-            ),
-            CE(Line,{yAxisId:"y2",type:"monotone",dataKey:"failRate",stroke:"#f87171",strokeWidth:2,dot:{fill:"#f87171",r:5}},
-              CE(LabelList,{content:CE(TrendLineLabel)})
-            )
-          )
-        )
+        CE(ChartBox,{config:trendConfig,height:"190px"})
       ):null
 
     ):null,
 
-    // 업로드 전 트렌드
     (!analysis&&records.length>0)?CE("div",{style:CARD},
       CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:6}},"날짜별 QC 실적 추이"),
-      CE(ResponsiveContainer,{width:"100%",height:190},
-        CE(ComposedChart,{data:records,margin:{top:28,right:40,left:0,bottom:10}},
-          CE(CartesianGrid,{stroke:"#334155"}),
-          CE(XAxis,{dataKey:"label",tick:{fill:"#94a3b8",fontSize:12}}),
-          CE(YAxis,{yAxisId:"y1",orientation:"left",domain:[0,Math.ceil(maxTrend*1.4)],tick:{fill:"#60a5fa",fontSize:11}}),
-          CE(YAxis,{yAxisId:"y2",orientation:"right",domain:[0,100],tick:{fill:"#f87171",fontSize:11},
-            tickFormatter:function(v){ return v+"%"; }}),
-          CE(Tooltip,tooltipStyle),
-          CE(Bar,{yAxisId:"y1",dataKey:"total",fill:"#3b82f69a",stroke:"#60a5fa",strokeWidth:2,radius:[4,4,0,0]},
-            CE(LabelList,{content:CE(TrendBarLabel)})
-          ),
-          CE(Line,{yAxisId:"y2",type:"monotone",dataKey:"failRate",stroke:"#f87171",strokeWidth:2,dot:{fill:"#f87171",r:5}},
-            CE(LabelList,{content:CE(TrendLineLabel)})
-          )
-        )
-      )
+      CE(ChartBox,{config:trendConfig,height:"190px"})
     ):null
 
   );
