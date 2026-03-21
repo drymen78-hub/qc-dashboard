@@ -13,490 +13,482 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0f172a;color:#f1f5f9;font-family:'Segoe UI',Arial,sans-serif;padding:12px}
-input[type=number]::-webkit-inner-spin-button,
-input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
 input[type=number]{-moz-appearance:textfield}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-var useState = React.useState;
+
+var useState  = React.useState;
 var useEffect = React.useEffect;
-var useRef = React.useRef;
-var C = React.createElement;
+var useRef    = React.useRef;
+var CE        = React.createElement;
+
 Chart.register(ChartDataLabels);
 
 var GAS_URL = "https://script.google.com/macros/s/AKfycbyQSpwiQBOuLF2oaOaW-Ka35XFmAg9Yp4vmh4P1ByPMUerACu6Ou56-1x4JEuT4_zE8Jw/exec";
-var DEFECT_TYPES = ["얼룩", "손상", "먼지"];
-var DEFECT_COLORS = ["#f87171", "#fbbf24", "#a78bfa", "#94a3b8"];
+var DEFECT_TYPES  = ["얼룩","손상","먼지"];
+var DEFECT_COLORS = ["#f87171","#fbbf24","#a78bfa","#94a3b8"];
 
-function st(v) { return (v == null ? "" : String(v)).trim(); }
-function isPass(v) { var t = st(v).replace(/\s/g, ""); return t.includes("적합") && !t.includes("부적합"); }
-function isFail(v) { var t = st(v).replace(/\s/g, ""); return t.includes("부적합") || t.includes("불합격"); }
-function fuzzy(cols, t) {
-  return cols.find(function(c) { return st(c).replace(/\s/g, "") === t.replace(/\s/g, ""); })
-      || cols.find(function(c) { return st(c).includes(t); });
+/* ── 유틸 ──────────────────────────────────────────── */
+function st(v){ return (v == null ? "" : String(v)).trim(); }
+function isPass(v){ var t = st(v).replace(/\s/g,""); return t.includes("적합") && !t.includes("부적합"); }
+function isFail(v){ var t = st(v).replace(/\s/g,""); return t.includes("부적합") || t.includes("불합격"); }
+function fuzzy(cols, t){
+  return cols.find(function(c){ return st(c).replace(/\s/g,"") === t.replace(/\s/g,""); })
+      || cols.find(function(c){ return st(c).includes(t); });
 }
-function pct(a, b) { return b > 0 ? +(a / b * 100).toFixed(1) : 0; }
-function intFmt(v) { return Number.isInteger(v) ? v.toLocaleString() : ""; }
+function pct(a, b){ return b > 0 ? +(a / b * 100).toFixed(1) : 0; }
+function intFmt(v){ return Number.isInteger(v) ? v.toLocaleString() : ""; }
 
-// ── ChartBox ──────────────────────────────────────────────────────────────────
-function ChartBox(props) {
+/* ── ChartBox 컴포넌트 ──────────────────────────────── */
+function ChartBox(props){
   var canvasRef = useRef(null);
-  var chartRef = useRef(null);
-  var configKey = JSON.stringify(props.config);
-
-  useEffect(function() {
+  var chartRef  = useRef(null);
+  var key = JSON.stringify(props.config);
+  useEffect(function(){
     if (!canvasRef.current || !props.config) return;
-    if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+    if (chartRef.current){ chartRef.current.destroy(); chartRef.current = null; }
     chartRef.current = new Chart(canvasRef.current, props.config);
-    return function() {
-      if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+    return function(){
+      if (chartRef.current){ chartRef.current.destroy(); chartRef.current = null; }
     };
-  }, [configKey]);
-
-  return C("div", { style: { position: "relative", height: props.height || "200px", width: "100%" } },
-    C("canvas", { ref: canvasRef })
+  }, [key]);
+  return CE("div", { style:{ position:"relative", height: props.height || "200px", width:"100%" } },
+    CE("canvas", { ref: canvasRef })
   );
 }
 
-// ── 차트 config 생성 함수 ─────────────────────────────────────────────────────
-function makeComboConfig(labels, barData, lineData, barLabel, lineLabel) {
+/* ── 원그래프 config ────────────────────────────────── */
+function makePieConfig(pass, fail){
+  return {
+    type: "doughnut",
+    data:{
+      labels: ["적합","부적합"],
+      datasets:[{
+        data: [pass, fail],
+        backgroundColor: ["#4ade80","#f87171"],
+        borderColor: "#1e293b",
+        borderWidth: 3
+      }]
+    },
+    options:{
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins:{
+        legend:{ position:"bottom", labels:{ color:"#94a3b8", font:{ size:11 }, padding:8 } },
+        datalabels:{
+          color:"#fff",
+          font:{ size:13, weight:"bold" },
+          formatter: function(v, ctx){
+            var tot = ctx.dataset.data.reduce(function(a,b){ return a+b; }, 0);
+            return tot > 0 ? (v/tot*100).toFixed(0)+"%" : "";
+          }
+        }
+      }
+    }
+  };
+}
+
+/* ── 콤보차트 config (막대 하단 고정 + 선 상단 고정) ── */
+function makeComboConfig(labels, barData, lineData){
   var maxBar = Math.max.apply(null, barData.concat([1]));
-  var y1max = Math.ceil(maxBar / 0.35);
-  // 차트 높이 대비 막대가 35% 이하에 위치 → 선(0~100%)은 35~100% 영역에서만 움직임
-  // y2=100%일때 차트 최상단, y2=0%일때 y1max에 비례한 중간 지점 → 구조적으로 분리
+  /* y1 max = maxBar * 2.5
+     → 막대 최대높이는 전체의 40% 수준
+     y2 = 0~100 고정
+     → 부적합률 선은 항상 상단 영역에 위치
+     두 데이터가 물리적으로 겹치지 않음 */
+  var y1max = Math.ceil(maxBar * 2.5);
 
   return {
     type: "bar",
-    data: {
+    data:{
       labels: labels,
-      datasets: [
+      datasets:[
         {
           type: "bar",
-          label: barLabel,
+          label: "총건수",
           data: barData,
           backgroundColor: "#3b82f699",
           borderColor: "#60a5fa",
           borderWidth: 2,
           borderRadius: 4,
           yAxisID: "y1",
-          datalabels: {
-            color: "#93c5fd",
-            font: { size: 9, weight: "bold" },
-            anchor: "end",
-            align: "top",
-            offset: 1,
-            formatter: function(v) { return v.toLocaleString() + "건"; }
+          datalabels:{
+            color: "#f1f5f9",
+            font:{ size:11, weight:"bold" },
+            anchor: "center",
+            align: "center",
+            formatter: function(v){ return v > 0 ? v.toLocaleString()+"건" : ""; }
           }
         },
         {
           type: "line",
-          label: lineLabel,
+          label: "부적합률",
           data: lineData,
           borderColor: "#f87171",
           backgroundColor: "transparent",
           borderWidth: 2,
-          pointRadius: 4,
+          pointRadius: 5,
           pointBackgroundColor: "#f87171",
-          tension: 0.4,
+          tension: 0.3,
           yAxisID: "y2",
-          datalabels: {
+          datalabels:{
             color: "#f87171",
-            font: { size: 9, weight: "bold" },
-            backgroundColor: "#1e293b",
-            borderRadius: 3,
-            borderWidth: 1,
-            borderColor: "#f8717166",
-            padding: { left: 3, right: 3, top: 1, bottom: 1 },
-            // 포인트 기준 위쪽 고정 — 막대와 겹치지 않음
+            font:{ size:11, weight:"bold" },
             anchor: "end",
-            align: "end",
+            align: "top",
             offset: 4,
-            formatter: function(v) { return v + "%"; }
+            formatter: function(v){ return v+"%"; }
           }
         }
       ]
     },
-    options: {
+    options:{
       responsive: true,
       maintainAspectRatio: false,
-      layout: { padding: { top: 40, right: 8 } },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: "#1e293b",
-          titleColor: "#f1f5f9",
-          bodyColor: "#94a3b8",
-          borderColor: "#334155",
-          borderWidth: 1
+      interaction:{ mode:"index", intersect:false },
+      layout:{ padding:{ top:28, right:8 } },
+      plugins:{
+        legend:{ display:false },
+        tooltip:{
+          backgroundColor:"#1e293b", titleColor:"#f1f5f9", bodyColor:"#94a3b8",
+          borderColor:"#334155", borderWidth:1
         }
       },
-      scales: {
-        x: {
-          ticks: { color: "#94a3b8", font: { size: 12, weight: "600" }, maxRotation: 25 },
-          grid: { color: "#334155" }
+      scales:{
+        x:{
+          ticks:{ color:"#94a3b8", font:{ size:11, weight:"600" }, maxRotation:25 },
+          grid:{ color:"#334155" }
         },
-        y1: {
+        y1:{
           position: "left",
           min: 0,
           max: y1max,
-          ticks: {
-            color: "#60a5fa",
-            font: { size: 11 },
-            maxTicksLimit: 5,
-            callback: function(v) { return intFmt(v); }
+          ticks:{
+            color:"#60a5fa", font:{ size:11 }, maxTicksLimit:5,
+            callback: function(v){ return intFmt(v); }
           },
-          grid: { color: "#334155" }
+          grid:{ color:"#334155" }
         },
-        y2: {
+        y2:{
           position: "right",
           min: 0,
           max: 100,
-          ticks: {
-            color: "#f87171",
-            font: { size: 11 },
-            callback: function(v) { return v + "%"; }
+          ticks:{
+            color:"#f87171", font:{ size:11 },
+            callback: function(v){ return v+"%"; }
           },
-          grid: { drawOnChartArea: false }
+          grid:{ drawOnChartArea:false }
         }
       }
     }
   };
 }
 
-function makePieConfig(pass, fail) {
-  return {
-    type: "doughnut",
-    data: {
-      labels: ["적합", "부적합"],
-      datasets: [{
-        data: [pass, fail],
-        backgroundColor: ["#4ade80", "#f87171"],
-        borderColor: "#1e293b",
-        borderWidth: 3
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: true,
-      plugins: {
-        legend: { position: "bottom", labels: { color: "#94a3b8", font: { size: 10 }, padding: 8 } },
-        datalabels: {
-          color: "#fff",
-          font: { size: 12, weight: "bold" },
-          formatter: function(v, ctx) {
-            var tot = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
-            return tot > 0 ? (v / tot * 100).toFixed(0) + "%" : "";
-          }
-        }
-      }
-    }
-  };
-}
-
-// ── App ───────────────────────────────────────────────────────────────────────
-function App() {
+/* ── 메인 App ───────────────────────────────────────── */
+function App(){
   var s;
-  s = useState(null);          var analysis = s[0];    var setAnalysis = s[1];
-  s = useState("");             var fileName = s[0];    var setFileName = s[1];
-  s = useState(new Date().toISOString().slice(0, 10)); var reportDate = s[0]; var setReportDate = s[1];
-  s = useState({얼룩:"",손상:"",먼지:""}); var defects = s[0]; var setDefects = s[1];
-  s = useState(false);          var defectSaved = s[0]; var setDefectSaved = s[1];
-  s = useState(null);           var defectData = s[0];  var setDefectData = s[1];
-  s = useState([]);             var records = s[0];     var setRecords = s[1];
-  s = useState(false);          var saved = s[0];       var setSaved = s[1];
-  s = useState(false);          var saving = s[0];      var setSaving = s[1];
-  s = useState("");             var saveMsg = s[0];     var setSaveMsg = s[1];
-  s = useState("");             var error = s[0];       var setError = s[1];
+  s = useState(null);   var analysis=s[0];     var setAnalysis=s[1];
+  s = useState("");     var fileName=s[0];     var setFileName=s[1];
+  s = useState(new Date().toISOString().slice(0,10)); var reportDate=s[0]; var setReportDate=s[1];
+  s = useState({얼룩:"",손상:"",먼지:""}); var defects=s[0]; var setDefects=s[1];
+  s = useState(false);  var defectSaved=s[0];  var setDefectSaved=s[1];
+  s = useState(null);   var defectData=s[0];   var setDefectData=s[1];
+  s = useState([]);     var records=s[0];      var setRecords=s[1];
+  s = useState(false);  var saved=s[0];        var setSaved=s[1];
+  s = useState(false);  var saving=s[0];       var setSaving=s[1];
+  s = useState("");     var saveMsg=s[0];      var setSaveMsg=s[1];
+  s = useState("");     var error=s[0];        var setError=s[1];
 
-  var mon = (reportDate || "").slice(5, 7).replace(/^0/, "");
-  var day = (reportDate || "").slice(8, 10).replace(/^0/, "");
+  var mon = (reportDate||"").slice(5,7).replace(/^0/,"");
+  var day = (reportDate||"").slice(8,10).replace(/^0/,"");
 
-  useEffect(function() {
+  /* Sheets 불러오기 */
+  useEffect(function(){
     fetch(GAS_URL)
-      .then(function(res) { return res.json(); })
-      .then(function(rows) {
+      .then(function(r){ return r.json(); })
+      .then(function(rows){
         var recs = rows
-          .filter(function(r) { return r[0] && r[0] !== "날짜"; })
-          .map(function(r) {
+          .filter(function(r){ return r[0] && r[0] !== "날짜"; })
+          .map(function(r){
             return {
               date: st(r[0]),
-              label: st(r[0]).slice(5).replace("-", "/"),
+              label: st(r[0]).slice(5).replace("-","/"),
               total: Number(r[1]),
-              pass: Number(r[2]),
-              fail: Number(r[3]),
+              pass:  Number(r[2]),
+              fail:  Number(r[3]),
               failRate: Number(r[4])
             };
           })
-          .sort(function(a, b) { return a.date.localeCompare(b.date); });
+          .sort(function(a,b){ return a.date.localeCompare(b.date); });
         setRecords(recs);
-        try { localStorage.setItem("qc_recs", JSON.stringify(recs)); } catch(e) {}
+        try{ localStorage.setItem("qc_recs", JSON.stringify(recs)); }catch(e){}
       })
-      .catch(function() {
-        try {
-          var loc = JSON.parse(localStorage.getItem("qc_recs") || "[]");
-          setRecords(loc);
-        } catch(e) {}
+      .catch(function(){
+        try{ setRecords(JSON.parse(localStorage.getItem("qc_recs")||"[]")); }catch(e){}
       });
   }, []);
 
-  function parseFile(file) {
+  /* 파일 파싱 */
+  function parseFile(file){
     setFileName(file.name); setError(""); setDefectSaved(false); setDefectData(null);
     setSaved(false); setSaveMsg(""); setDefects({얼룩:"",손상:"",먼지:""}); setAnalysis(null);
     var reader = new FileReader();
-    reader.onload = function(e) {
-      try {
-        var wb = XLSX.read(e.target.result, { type: "array", cellDates: true });
-        var ws = wb.Sheets[wb.SheetNames[0]];
-        var rows = XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
-        if (!rows.length) { setError("데이터 없음"); return; }
+    reader.onload = function(e){
+      try{
+        var wb   = XLSX.read(e.target.result, { type:"array", cellDates:true });
+        var ws   = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, { defval:"", raw:false });
+        if (!rows.length){ setError("데이터 없음"); return; }
         var cols = Object.keys(rows[0]);
-        var rC = fuzzy(cols, "품질검사결과");
-        var iC = fuzzy(cols, "품목명") || fuzzy(cols, "중분류");
-        var total = rows.length, pass = 0, fail = 0;
-        rows.forEach(function(r) {
+        var rC   = fuzzy(cols,"품질검사결과");
+        var iC   = fuzzy(cols,"품목명") || fuzzy(cols,"중분류");
+        var total=rows.length, pass=0, fail=0;
+        rows.forEach(function(r){
           if (isPass(r[rC])) pass++;
           else if (isFail(r[rC])) fail++;
         });
         var iMap = {};
-        rows.forEach(function(r) {
+        rows.forEach(function(r){
           var item = st(r[iC]) || "미기재";
-          if (!iMap[item]) iMap[item] = { pass: 0, fail: 0 };
+          if (!iMap[item]) iMap[item] = { pass:0, fail:0 };
           if (isPass(r[rC])) iMap[item].pass++;
           else if (isFail(r[rC])) iMap[item].fail++;
         });
         var itemStats = Object.entries(iMap)
-          .map(function(entry) {
+          .map(function(en){
             return {
-              name: entry[0],
-              pass: entry[1].pass,
-              fail: entry[1].fail,
-              total: entry[1].pass + entry[1].fail,
-              failRate: pct(entry[1].fail, entry[1].pass + entry[1].fail)
+              name: en[0],
+              pass: en[1].pass,
+              fail: en[1].fail,
+              total: en[1].pass + en[1].fail,
+              failRate: pct(en[1].fail, en[1].pass + en[1].fail)
             };
           })
-          .sort(function(a, b) { return b.total - a.total; })
+          .sort(function(a,b){ return b.total - a.total; })
           .slice(0, 12);
-        setAnalysis({ total: total, pass: pass, fail: fail, itemStats: itemStats });
-      } catch(err) { setError("파싱 오류: " + err.message); }
+        setAnalysis({ total:total, pass:pass, fail:fail, itemStats:itemStats });
+      }catch(err){ setError("파싱 오류: "+err.message); }
     };
     reader.readAsArrayBuffer(file);
   }
 
-  function handleSave() {
+  /* 실적 저장 */
+  function handleSave(){
     if (!analysis || !reportDate) return;
     setSaving(true); setSaveMsg("");
     var defectFilled = {};
-    if (defectSaved && defectData) {
-      defectData.forEach(function(x) { defectFilled["defect_" + x.name] = x.value; });
+    if (defectSaved && defectData){
+      defectData.forEach(function(x){ defectFilled["defect_"+x.name] = x.value; });
     }
-    var fr = pct(analysis.fail, analysis.total);
-    var payload = Object.assign(
-      { date: reportDate, total: analysis.total, pass: analysis.pass, fail: analysis.fail, failRate: fr },
-      defectFilled
-    );
-    var label = reportDate.slice(5).replace("-", "/");
-    var newRec = { date: reportDate, label: label, total: analysis.total, pass: analysis.pass, fail: analysis.fail, failRate: fr };
-    var updated = records.filter(function(r) { return r.date !== reportDate; });
+    var fr      = pct(analysis.fail, analysis.total);
+    var payload = Object.assign({ date:reportDate, total:analysis.total, pass:analysis.pass, fail:analysis.fail, failRate:fr }, defectFilled);
+    var newRec  = { date:reportDate, label:reportDate.slice(5).replace("-","/"), total:analysis.total, pass:analysis.pass, fail:analysis.fail, failRate:fr };
+    var updated = records.filter(function(r){ return r.date !== reportDate; });
     updated.push(newRec);
-    updated.sort(function(a, b) { return a.date.localeCompare(b.date); });
-    try { localStorage.setItem("qc_recs", JSON.stringify(updated)); } catch(e) {}
+    updated.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    try{ localStorage.setItem("qc_recs", JSON.stringify(updated)); }catch(e){}
     setRecords(updated);
-    fetch(GAS_URL, { method: "POST", mode: "no-cors", body: JSON.stringify(payload) })
-      .then(function() { setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); })
-      .catch(function() { setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); });
+    fetch(GAS_URL, { method:"POST", mode:"no-cors", body:JSON.stringify(payload) })
+      .then(function(){ setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); })
+      .catch(function(){ setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); });
   }
 
-  function doSaveDefects() {
-    var entered = DEFECT_TYPES.reduce(function(sum, t) { return sum + (Number(defects[t]) || 0); }, 0);
-    var etc = Math.max(0, analysis.fail - entered);
-    var data = DEFECT_TYPES.map(function(t, i) {
-      return { name: t, value: Number(defects[t]) || 0, color: DEFECT_COLORS[i] };
-    });
-    if (etc > 0) data.push({ name: "기타", value: etc, color: DEFECT_COLORS[3] });
-    data = data.filter(function(d) { return d.value > 0; });
+  /* 부적합 유형 저장 */
+  function doSaveDefects(){
+    var entered = DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(defects[t])||0); }, 0);
+    var etc     = Math.max(0, analysis.fail - entered);
+    var data    = DEFECT_TYPES.map(function(t,i){ return { name:t, value:Number(defects[t])||0, color:DEFECT_COLORS[i] }; });
+    if (etc > 0) data.push({ name:"기타", value:etc, color:DEFECT_COLORS[3] });
+    data = data.filter(function(d){ return d.value > 0; });
     setDefectData(data); setDefectSaved(true);
   }
 
+  /* 파생값 */
   var failRate = analysis ? pct(analysis.fail, analysis.total) : 0;
-  var entered = DEFECT_TYPES.reduce(function(sum, t) { return sum + (Number(defects[t]) || 0); }, 0);
-  var etc = analysis ? Math.max(0, analysis.fail - entered) : 0;
+  var entered  = DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(defects[t])||0); }, 0);
+  var etc      = analysis ? Math.max(0, analysis.fail - entered) : 0;
 
-  var pieConfig = analysis ? makePieConfig(analysis.pass, analysis.fail) : null;
-
+  /* chart configs */
+  var pieConfig  = analysis ? makePieConfig(analysis.pass, analysis.fail) : null;
   var itemConfig = (analysis && analysis.itemStats.length > 0)
-    ? makeItemConfig(
-        analysis.itemStats.map(function(d) { return d.name; }),
-        analysis.itemStats.map(function(d) { return d.total; }),
-        analysis.itemStats.map(function(d) { return d.failRate; })
+    ? makeComboConfig(
+        analysis.itemStats.map(function(d){ return d.name; }),
+        analysis.itemStats.map(function(d){ return d.total; }),
+        analysis.itemStats.map(function(d){ return d.failRate; })
       )
     : null;
-
   var trendConfig = records.length > 0
-    ? makeItemConfig(
-        records.map(function(r) { return r.label; }),
-        records.map(function(r) { return r.total; }),
-        records.map(function(r) { return r.failRate; })
+    ? makeComboConfig(
+        records.map(function(r){ return r.label; }),
+        records.map(function(r){ return r.total; }),
+        records.map(function(r){ return r.failRate; })
       )
     : null;
 
-  var cardSt = { background: "#1e293b", borderRadius: 8, padding: "10px 12px", marginBottom: 8 };
+  /* 스타일 상수 */
+  var CARD = { background:"#1e293b", borderRadius:8, padding:"10px 12px", marginBottom:8 };
 
-  return C("div", { style: { maxWidth: 960, margin: "0 auto" } },
+  /* ── 렌더 ──────────────────────────────────────────── */
+  return CE("div", { style:{ maxWidth:960, margin:"0 auto" } },
 
-    // 타이틀
-    C("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 } },
-      C("div", null,
-        C("h1", { style: { fontSize: 20, fontWeight: 800 } },
-          "야간책임운영실 ", C("span", { style: { color: "#60a5fa" } }, mon + "월" + day + "일"), " QC 현황"
+    /* 타이틀 */
+    CE("div", { style:{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8, marginBottom:8 } },
+      CE("div", null,
+        CE("h1", { style:{ fontSize:20, fontWeight:800 } },
+          "야간책임운영실 ", CE("span",{ style:{ color:"#60a5fa" } }, mon+"월"+day+"일"), " QC 현황"
         ),
-        fileName ? C("div", { style: { fontSize: 12, color: "#475569", marginTop: 2 } }, "📄 " + fileName) : null
+        fileName ? CE("div",{ style:{ fontSize:12, color:"#475569", marginTop:2 } },"📄 "+fileName) : null
       ),
-      C("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
-        C("input", {
-          type: "date", value: reportDate,
-          onChange: function(e) { setReportDate(e.target.value); },
-          style: { background: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#f1f5f9", padding: "5px 10px", fontSize: 13, outline: "none" }
+      CE("div", { style:{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" } },
+        CE("input",{
+          type:"date", value:reportDate,
+          onChange: function(e){ setReportDate(e.target.value); },
+          style:{ background:"#1e293b", border:"1px solid #334155", borderRadius:6, color:"#f1f5f9", padding:"5px 10px", fontSize:13, outline:"none" }
         }),
-        (analysis && !saved) ? C("button", {
+        (analysis && !saved) ? CE("button",{
           onClick: handleSave, disabled: saving,
-          style: { background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 6, color: "#60a5fa", padding: "5px 14px", cursor: "pointer", fontSize: 13, fontWeight: 700 }
+          style:{ background:"#1e3a5f", border:"1px solid #2563eb", borderRadius:6, color:"#60a5fa", padding:"5px 14px", cursor:"pointer", fontSize:13, fontWeight:700 }
         }, saving ? "저장 중..." : "💾 저장") : null,
-        saveMsg ? C("span", { style: { fontSize: 13, fontWeight: 700, color: "#4ade80" } }, saveMsg) : null,
-        analysis ? C("button", {
-          onClick: function() {
+        saveMsg ? CE("span",{ style:{ fontSize:13, fontWeight:700, color:"#4ade80" } }, saveMsg) : null,
+        analysis ? CE("button",{
+          onClick: function(){
             setAnalysis(null); setFileName(""); setDefectSaved(false); setDefectData(null);
             setSaved(false); setSaveMsg(""); setDefects({얼룩:"",손상:"",먼지:""});
           },
-          style: { background: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#64748b", padding: "5px 12px", cursor: "pointer", fontSize: 13 }
+          style:{ background:"#1e293b", border:"1px solid #334155", borderRadius:6, color:"#64748b", padding:"5px 12px", cursor:"pointer", fontSize:13 }
         }, "🔄") : null
       )
     ),
 
-    error ? C("div", { style: { background: "#450a0a", border: "1px solid #f87171", borderRadius: 6, padding: "8px 12px", color: "#fca5a5", marginBottom: 8, fontSize: 12 } }, error) : null,
+    /* 오류 */
+    error ? CE("div",{ style:{ background:"#450a0a", border:"1px solid #f87171", borderRadius:6, padding:"8px 12px", color:"#fca5a5", marginBottom:8, fontSize:13 } }, error) : null,
 
-    // 업로드
-    !analysis ? C("div", {
-      style: { border: "2px dashed #334155", borderRadius: 12, padding: "32px 24px", textAlign: "center", cursor: "pointer", background: "#1e293b", marginBottom: 8 },
-      onClick: function() { document.getElementById("fi").click(); },
-      onDragOver: function(e) { e.preventDefault(); },
-      onDrop: function(e) { e.preventDefault(); var f = e.dataTransfer && e.dataTransfer.files[0]; if (f) parseFile(f); }
+    /* 업로드 */
+    !analysis ? CE("div",{
+      style:{ border:"2px dashed #334155", borderRadius:12, padding:"32px 24px", textAlign:"center", cursor:"pointer", background:"#1e293b", marginBottom:8 },
+      onClick: function(){ document.getElementById("fi").click(); },
+      onDragOver: function(e){ e.preventDefault(); },
+      onDrop: function(e){ e.preventDefault(); var f=e.dataTransfer&&e.dataTransfer.files[0]; if(f) parseFile(f); }
     },
-      C("div", { style: { fontSize: 32, marginBottom: 8 } }, "📂"),
-      C("div", { style: { fontSize: 13, color: "#94a3b8", marginBottom: 4 } }, "엑셀 또는 CSV 파일 업로드"),
-      C("div", { style: { fontSize: 11, color: "#475569" } }, ".xlsx / .xls / .csv"),
-      C("input", { id: "fi", type: "file", accept: ".xlsx,.xls,.csv", style: { display: "none" }, onChange: function(e) { if (e.target.files[0]) parseFile(e.target.files[0]); } })
+      CE("div",{ style:{ fontSize:32, marginBottom:8 } },"📂"),
+      CE("div",{ style:{ fontSize:14, color:"#94a3b8", marginBottom:4 } },"엑셀 또는 CSV 파일 업로드"),
+      CE("div",{ style:{ fontSize:12, color:"#475569" } },".xlsx / .xls / .csv"),
+      CE("input",{ id:"fi", type:"file", accept:".xlsx,.xls,.csv", style:{ display:"none" },
+        onChange: function(e){ if(e.target.files[0]) parseFile(e.target.files[0]); } })
     ) : null,
 
-    // 대시보드
-    analysis ? C("div", null,
+    /* ── 대시보드 ──────────────────────────────────────── */
+    analysis ? CE("div", null,
 
-      // Row1: KPI + 부적합유형 + 원그래프
-      C("div", { style: { display: "flex", gap: 8, marginBottom: 8, alignItems: "stretch" } },
+      /* Row1: KPI + 유형 + 파이 */
+      CE("div",{ style:{ display:"flex", gap:8, marginBottom:8, alignItems:"stretch" } },
 
-        C("div", { style: { display: "flex", flexDirection: "column", gap: 8, flex: 1 } },
+        /* 왼쪽: KPI 3개 + 유형 3개 */
+        CE("div",{ style:{ display:"flex", flexDirection:"column", gap:8, flex:1 } },
 
-          // KPI 3개
-          C("div", { style: { display: "flex", gap: 8 } },
-            [["전체 QC", analysis.total.toLocaleString() + "건", "#60a5fa"],
-             ["부적합", analysis.fail.toLocaleString() + "건", "#f87171"],
-             ["부적합률", failRate + "%", "#fbbf24"]
-            ].map(function(k) {
-              return C("div", { key: k[0], style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, height: 80, display: "flex", flexDirection: "column", justifyContent: "center" } },
-                C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 4 } }, k[0]),
-                C("div", { style: { fontSize: 28, fontWeight: 800, color: k[2], lineHeight: 1 } }, k[1])
+          /* KPI */
+          CE("div",{ style:{ display:"flex", gap:8 } },
+            [["전체 QC", analysis.total.toLocaleString()+"건", "#60a5fa"],
+             ["부적합",  analysis.fail.toLocaleString()+"건",  "#f87171"],
+             ["부적합률", failRate+"%",                        "#fbbf24"]
+            ].map(function(k){
+              return CE("div",{ key:k[0], style:{ background:"#1e293b", borderRadius:8, padding:"8px 12px", flex:1, height:80, display:"flex", flexDirection:"column", justifyContent:"center" } },
+                CE("div",{ style:{ fontSize:13, fontWeight:700, color:"#94a3b8", marginBottom:4 } }, k[0]),
+                CE("div",{ style:{ fontSize:28, fontWeight:800, color:k[2], lineHeight:1 } }, k[1])
               );
             })
           ),
 
-          // 부적합 유형
-          C("div", { style: { display: "flex", gap: 8, alignItems: "stretch" } },
+          /* 부적합 유형 */
+          CE("div",{ style:{ display:"flex", gap:8, alignItems:"stretch" } },
             !defectSaved
-              ? DEFECT_TYPES.map(function(t) {
-                  return C("div", { key: t, style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, height: 80, display: "flex", flexDirection: "column", justifyContent: "center" } },
-                    C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 4 } }, t),
-                    C("input", {
-                      type: "number", min: "0", value: defects[t],
-                      onChange: function(e) { var v = e.target.value; setDefects(function(p) { return Object.assign({}, p, {[t]: v}); }); },
-                      style: { width: "100%", textAlign: "center", color: "#f87171", background: "#0f172a", border: "1px solid #334155", borderRadius: 6, padding: "4px", fontSize: 20, fontWeight: 800, outline: "none" }
+              ? DEFECT_TYPES.map(function(t){
+                  return CE("div",{ key:t, style:{ background:"#1e293b", borderRadius:8, padding:"8px 12px", flex:1, height:80, display:"flex", flexDirection:"column", justifyContent:"center" } },
+                    CE("div",{ style:{ fontSize:13, fontWeight:700, color:"#94a3b8", marginBottom:4 } }, t),
+                    CE("input",{
+                      type:"number", min:"0", value:defects[t],
+                      onChange: function(e){ var v=e.target.value; setDefects(function(p){ return Object.assign({},p,{[t]:v}); }); },
+                      style:{ width:"100%", textAlign:"center", color:"#f87171", background:"#0f172a", border:"1px solid #334155", borderRadius:6, padding:"4px", fontSize:20, fontWeight:800, outline:"none" }
                     })
                   );
                 }).concat([
-                  C("div", { key: "etc", style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, height: 80, display: "flex", flexDirection: "column", justifyContent: "center", opacity: 0.5 } },
-                    C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 4 } }, "기타"),
-                    C("div", { style: { fontSize: 20, fontWeight: 800, color: "#94a3b8", textAlign: "center" } }, etc)
+                  CE("div",{ key:"etc", style:{ background:"#1e293b", borderRadius:8, padding:"8px 12px", flex:1, height:80, display:"flex", flexDirection:"column", justifyContent:"center", opacity:0.5 } },
+                    CE("div",{ style:{ fontSize:13, fontWeight:700, color:"#94a3b8", marginBottom:4 } },"기타"),
+                    CE("div",{ style:{ fontSize:20, fontWeight:800, color:"#94a3b8", textAlign:"center" } }, etc)
                   ),
-                  C("div", { key: "btn", style: { display: "flex", alignItems: "center" } },
-                    C("button", {
+                  CE("div",{ key:"btn", style:{ display:"flex", alignItems:"center" } },
+                    CE("button",{
                       onClick: doSaveDefects,
-                      style: { background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 6, color: "#60a5fa", padding: "6px 10px", cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }
-                    }, "확인")
+                      style:{ background:"#1e3a5f", border:"1px solid #2563eb", borderRadius:6, color:"#60a5fa", padding:"6px 10px", cursor:"pointer", fontSize:13, fontWeight:700, whiteSpace:"nowrap" }
+                    },"확인")
                   )
                 ])
-              : (defectData || []).map(function(d) {
-                  return C("div", { key: d.name, style: { background: "#1e293b", borderRadius: 8, padding: "8px 12px", flex: 1, height: 80, display: "flex", flexDirection: "column", justifyContent: "center", borderTop: "2px solid " + d.color } },
-                    C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 2 } }, d.name),
-                    C("div", { style: { fontSize: 28, fontWeight: 800, color: d.color, lineHeight: 1 } }, d.value + "건"),
-                    C("div", { style: { fontSize: 12, fontWeight: 600, color: "#64748b", marginTop: 2 } }, pct(d.value, analysis.fail) + "%")
+              : (defectData||[]).map(function(d){
+                  return CE("div",{ key:d.name, style:{ background:"#1e293b", borderRadius:8, padding:"8px 12px", flex:1, height:80, display:"flex", flexDirection:"column", justifyContent:"center", borderTop:"2px solid "+d.color } },
+                    CE("div",{ style:{ fontSize:13, fontWeight:700, color:"#94a3b8", marginBottom:2 } }, d.name),
+                    CE("div",{ style:{ fontSize:28, fontWeight:800, color:d.color, lineHeight:1 } }, d.value+"건"),
+                    CE("div",{ style:{ fontSize:12, fontWeight:600, color:"#64748b", marginTop:2 } }, pct(d.value,analysis.fail)+"%")
                   );
                 }).concat([
-                  C("div", { key: "edit", style: { display: "flex", alignItems: "center" } },
-                    C("button", {
-                      onClick: function() { setDefectSaved(false); },
-                      style: { background: "#1e293b", border: "1px solid #334155", borderRadius: 6, color: "#64748b", padding: "6px 10px", cursor: "pointer", fontSize: 11 }
-                    }, "수정")
+                  CE("div",{ key:"edit", style:{ display:"flex", alignItems:"center" } },
+                    CE("button",{
+                      onClick: function(){ setDefectSaved(false); },
+                      style:{ background:"#1e293b", border:"1px solid #334155", borderRadius:6, color:"#64748b", padding:"6px 10px", cursor:"pointer", fontSize:12 }
+                    },"수정")
                   )
                 ])
           )
         ),
 
-        // 원그래프
-        C("div", { style: { background: "#1e293b", borderRadius: 8, padding: "10px 12px", width: 170, flexShrink: 0, display: "flex", flexDirection: "column" } },
-          C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8", marginBottom: 4 } }, "적합 / 부적합"),
-          C("div", { style: { position: "relative", flex: 1 } },
-            C(ChartBox, { config: pieConfig, height: "100%" })
+        /* 오른쪽: 파이차트 */
+        CE("div",{ style:{ background:"#1e293b", borderRadius:8, padding:"10px 12px", width:170, flexShrink:0, display:"flex", flexDirection:"column" } },
+          CE("div",{ style:{ fontSize:13, fontWeight:700, color:"#94a3b8", marginBottom:4 } },"적합 / 부적합"),
+          CE("div",{ style:{ position:"relative", flex:1 } },
+            CE(ChartBox, { config:pieConfig, height:"100%" })
           )
         )
       ),
 
-      // Row2: 품목별
-      (analysis.itemStats.length > 0) ? C("div", { style: cardSt },
-        C("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
-          C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8" } }, "품목별 QC 현황"),
-          C("div", { style: { fontSize: 11, color: "#64748b", display: "flex", gap: 8 } },
-            C("span", null, C("span", { style: { display: "inline-block", width: 8, height: 8, background: "#60a5fa", borderRadius: 2, marginRight: 2, verticalAlign: "middle" } }), "총건수(좌)"),
-            C("span", null, C("span", { style: { display: "inline-block", width: 10, height: 2, background: "#f87171", marginRight: 2, verticalAlign: "middle" } }), "부적합률%(우)")
+      /* Row2: 품목별 */
+      (analysis.itemStats.length > 0) ? CE("div",{ style:CARD },
+        CE("div",{ style:{ display:"flex", alignItems:"center", gap:10, marginBottom:6 } },
+          CE("div",{ style:{ fontSize:13, fontWeight:700, color:"#94a3b8" } },"품목별 QC 현황"),
+          CE("div",{ style:{ fontSize:11, color:"#64748b", display:"flex", gap:8 } },
+            CE("span",null, CE("span",{ style:{ display:"inline-block", width:8, height:8, background:"#60a5fa", borderRadius:2, marginRight:2, verticalAlign:"middle" } }), "총건수(좌)"),
+            CE("span",null, CE("span",{ style:{ display:"inline-block", width:10, height:2, background:"#f87171", marginRight:2, verticalAlign:"middle" } }), "부적합률%(우)")
           )
         ),
-        C(ChartBox, { config: itemConfig, height: "200px" })
+        CE(ChartBox, { config:itemConfig, height:"210px" })
       ) : null,
 
-      // Row3: 트렌드
-      records.length > 0 ? C("div", { style: cardSt },
-        C("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
-          C("div", { style: { fontSize: 13, fontWeight: 700, color: "#94a3b8" } }, "날짜별 QC 실적 추이"),
-          C("div", { style: { fontSize: 11, color: "#64748b", display: "flex", gap: 8 } },
-            C("span", null, C("span", { style: { display: "inline-block", width: 8, height: 8, background: "#60a5fa", borderRadius: 2, marginRight: 2, verticalAlign: "middle" } }), "총건수(좌)"),
-            C("span", null, C("span", { style: { display: "inline-block", width: 10, height: 2, background: "#f87171", marginRight: 2, verticalAlign: "middle" } }), "부적합률%(우)")
+      /* Row3: 트렌드 */
+      records.length > 0 ? CE("div",{ style:CARD },
+        CE("div",{ style:{ display:"flex", alignItems:"center", gap:10, marginBottom:6 } },
+          CE("div",{ style:{ fontSize:13, fontWeight:700, color:"#94a3b8" } },"날짜별 QC 실적 추이"),
+          CE("div",{ style:{ fontSize:11, color:"#64748b", display:"flex", gap:8 } },
+            CE("span",null, CE("span",{ style:{ display:"inline-block", width:8, height:8, background:"#60a5fa", borderRadius:2, marginRight:2, verticalAlign:"middle" } }), "총건수(좌)"),
+            CE("span",null, CE("span",{ style:{ display:"inline-block", width:10, height:2, background:"#f87171", marginRight:2, verticalAlign:"middle" } }), "부적합률%(우)")
           )
         ),
-        C(ChartBox, { config: trendConfig, height: "160px" })
+        CE(ChartBox, { config:trendConfig, height:"170px" })
       ) : null
 
     ) : null,
 
-    // 업로드 전 트렌드
-    (!analysis && records.length > 0) ? C("div", { style: cardSt },
-      C("div", { style: { fontSize: 11, fontWeight: 600, color: "#94a3b8", marginBottom: 6 } }, "날짜별 QC 실적 추이"),
-      C(ChartBox, { config: trendConfig, height: "160px" })
+    /* 업로드 전 트렌드 */
+    (!analysis && records.length > 0) ? CE("div",{ style:CARD },
+      CE("div",{ style:{ fontSize:13, fontWeight:700, color:"#94a3b8", marginBottom:6 } },"날짜별 QC 실적 추이"),
+      CE(ChartBox, { config:trendConfig, height:"170px" })
     ) : null
 
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(C(App));
+ReactDOM.createRoot(document.getElementById("root")).render(CE(App));
 </script>
 </body>
 </html>
