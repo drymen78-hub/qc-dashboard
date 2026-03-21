@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>야간책임운영실 QC 현황</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0f172a;color:#f1f5f9;font-family:Pretendard,-apple-system,sans-serif;padding:20px 16px;min-height:100vh}
+.wrap{max-width:960px;margin:0 auto}
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none}
+input[type=number]{-moz-appearance:textfield}
+input,button{font-family:inherit}
+.upload-zone{border:2px dashed #334155;border-radius:14px;padding:40px 24px;text-align:center;cursor:pointer;background:#1e293b;margin-bottom:16px}
+.card{background:#1e293b;border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.stat-card{background:#1e293b;border-radius:10px;padding:12px 16px;flex:1;min-width:110px}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+Chart.register(ChartDataLabels);
+
+var GAS_URL = "https://script.google.com/macros/s/AKfycbyQSpwiQBOuLF2oaOaW-Ka35XFmAg9Yp4vmh4P1ByPMUerACu6Ou56-1x4JEuT4_zE8Jw/exec";
+var DEFECT_TYPES = ["얼룩","손상","먼지"];
+var DEFECT_COLORS = ["#f87171","#fbbf24","#a78bfa","#94a3b8"];
+
+// ── 상태 ──────────────────────────────────────────────────────────────────────
+var S = {
+  analysis: null,
+  fileName: "",
+  reportDate: new Date().toISOString().slice(0,10),
+  defects: {얼룩:"", 손상:"", 먼지:""},
+  defectSaved: false,
+  defectData: null,
+  records: [],
+  saved: false,
+  saving: false,
+  saveMsg: "",
+  error: ""
+};
+
+// ── 유틸 ──────────────────────────────────────────────────────────────────────
+function s(v){ return (v==null?"":String(v)).trim(); }
+function isPass(v){ var t=s(v).replace(/\s/g,""); return t.includes("적합")&&!t.includes("부적합"); }
+function isFail(v){ var t=s(v).replace(/\s/g,""); return t.includes("부적합")||t.includes("불합격"); }
+function isY(v){ return s(v)==="Y"; }
+function isN(v){ return s(v)==="N"; }
+function fuzzy(cols,t){ return cols.find(function(c){return s(c).replace(/\s/g,"")=== t.replace(/\s/g,"");}) || cols.find(function(c){return s(c).includes(t);}); }
+function pct(a,b){ return b>0?+(a/b*100).toFixed(1):0; }
+
+function setState(patch){
+  Object.assign(S, patch);
+  render();
+}
+
+// ── 로컬스토리지 ──────────────────────────────────────────────────────────────
+function loadLocal(){
+  try{ return JSON.parse(localStorage.getItem("qc_recs")||"[]"); }catch{ return []; }
+}
+function saveLocal(recs){
+  try{ localStorage.setItem("qc_recs", JSON.stringify(recs)); }catch{}
+}
+
+// ── Sheets 불러오기 ───────────────────────────────────────────────────────────
+function loadRecords(){
+  fetch(GAS_URL)
+    .then(function(r){ return r.json(); })
+    .then(function(rows){
+      var recs = rows.filter(function(r){ return r[0] && r[0]!=="날짜"; })
+        .map(function(r){
+          return {
+            date: s(r[0]),
+            label: s(r[0]).slice(5).replace("-","/"),
+            total: Number(r[1]), pass: Number(r[2]),
+            fail: Number(r[3]), failRate: Number(r[4])
+          };
+        }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+      saveLocal(recs);
+      S.records = recs;
+      render();
+    })
+    .catch(function(){
+      S.records = loadLocal();
+      render();
+    });
+}
+
+// ── 파일 파싱 ─────────────────────────────────────────────────────────────────
+function parseFile(file){
+  setState({fileName:file.name, error:"", defectSaved:false, defectData:null,
+    saved:false, defects:{얼룩:"",손상:"",먼지:""}, saveMsg:"", analysis:null});
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      var wb = XLSX.read(e.target.result, {type:"array", cellDates:true});
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {defval:"", raw:false});
+      if(!rows.length){ setState({error:"데이터 없음"}); return; }
+      analyze(rows);
+    }catch(err){ setState({error:"파싱 오류: "+err.message}); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function analyze(rows){
+  var cols = Object.keys(rows[0]);
+  var rC = fuzzy(cols,"품질검사결과");
+  var iC = fuzzy(cols,"품목명") || fuzzy(cols,"중분류");
+  var sC = fuzzy(cols,"얼룩체크");
+
+  var total=rows.length, pass=0, fail=0;
+  rows.forEach(function(r){
+    if(isPass(r[rC])) pass++;
+    else if(isFail(r[rC])) fail++;
+  });
+
+  // 품목별
+  var iMap={};
+  rows.forEach(function(r){
+    var item = s(r[iC])||"미기재";
+    if(!iMap[item]) iMap[item]={pass:0,fail:0};
+    if(isPass(r[rC])) iMap[item].pass++;
+    else if(isFail(r[rC])) iMap[item].fail++;
+  });
+  var itemStats = Object.entries(iMap)
+    .map(function(e){ return {name:e[0], pass:e[1].pass, fail:e[1].fail,
+      total:e[1].pass+e[1].fail, failRate:pct(e[1].fail, e[1].pass+e[1].fail)}; })
+    .sort(function(a,b){ return b.total-a.total; }).slice(0,12);
+
+  // 얼룩체크
+  var stainStats=null;
+  if(sC){
+    var sm={Y:{pass:0,fail:0}, N:{pass:0,fail:0}};
+    rows.forEach(function(r){
+      var b=isY(r[sC])?"Y":isN(r[sC])?"N":null;
+      if(!b) return;
+      if(isPass(r[rC])) sm[b].pass++;
+      else if(isFail(r[rC])) sm[b].fail++;
+    });
+    stainStats=["Y","N"].map(function(k){
+      return {name:k==="Y"?"Y (얼룩있음)":"N (얼룩없음)", key:k,
+        pass:sm[k].pass, fail:sm[k].fail, total:sm[k].pass+sm[k].fail,
+        failRate:pct(sm[k].fail, sm[k].pass+sm[k].fail)};
+    });
+  }
+  setState({analysis:{total:total, pass:pass, fail:fail, itemStats:itemStats, stainStats:stainStats}});
+}
+
+// ── 저장 ─────────────────────────────────────────────────────────────────────
+function handleSave(){
+  var a=S.analysis, d=S.reportDate;
+  if(!a||!d) return;
+  setState({saving:true, saveMsg:""});
+
+  var defectFilled={};
+  if(S.defectSaved && S.defectData){
+    S.defectData.forEach(function(x){ defectFilled["defect_"+x.name]=x.value; });
+  }
+  var failRate = pct(a.fail, a.total);
+  var payload = Object.assign({
+    date:d, total:a.total, pass:a.pass, fail:a.fail, failRate:failRate
+  }, defectFilled);
+
+  // 로컬 먼저 저장
+  var label = d.slice(5).replace("-","/");
+  var newRec = {date:d, label:label, total:a.total, pass:a.pass, fail:a.fail, failRate:failRate};
+  var updated = S.records.filter(function(r){ return r.date!==d; });
+  updated.push(newRec);
+  updated.sort(function(a,b){ return a.date.localeCompare(b.date); });
+  saveLocal(updated);
+
+  // 입고팀 대시보드와 동일한 방식으로 Sheets 저장
+  fetch(GAS_URL, {
+    method: "POST",
+    mode: "no-cors",
+    body: JSON.stringify(payload)
+  }).then(function(){
+    setState({saving:false, saved:true, saveMsg:"✓ 저장 완료", records:updated});
+    // 2초 후 Sheets에서 최신 데이터 불러오기
+    setTimeout(loadRecords, 2000);
+  }).catch(function(){
+    setState({saving:false, saved:true, saveMsg:"✓ 로컬 저장됨", records:updated});
+  });
+}
+
+function saveDefects(){
+  var a=S.analysis;
+  var entered = DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(S.defects[t])||0); },0);
+  var etc = Math.max(0, a.fail - entered);
+  var data = DEFECT_TYPES.map(function(t,i){
+    return {name:t, value:Number(S.defects[t])||0, color:DEFECT_COLORS[i]};
+  });
+  if(etc>0) data.push({name:"기타", value:etc, color:DEFECT_COLORS[3]});
+  data = data.filter(function(d){ return d.value>0; });
+  setState({defectSaved:true, defectData:data});
+  setTimeout(drawCharts, 50);
+}
+
+function resetAll(){
+  setState({analysis:null, fileName:"", defectSaved:false, defectData:null,
+    saved:false, defects:{얼룩:"",손상:"",먼지:""}, saveMsg:"", error:""});
+}
+
+function onDrop(e){
+  e.preventDefault();
+  var file = e.dataTransfer&&e.dataTransfer.files[0];
+  if(file) parseFile(file);
+}
+function onFileChange(e){
+  if(e.target.files[0]) parseFile(e.target.files[0]);
+}
+function updateDefect(t,v){
+  S.defects[t]=v;
+  // 기타 건수만 갱신 (리렌더 없이)
+  var entered = DEFECT_TYPES.reduce(function(sum,k){ return sum+(Number(S.defects[k])||0); },0);
+  var etc = Math.max(0, S.analysis.fail - entered);
+  var el = document.getElementById("etc_count");
+  if(el) el.textContent = etc;
+}
+
+// ── 렌더 ─────────────────────────────────────────────────────────────────────
+function render(){
+  var a=S.analysis;
+  var mon=(S.reportDate||"").slice(5,7).replace(/^0/,"");
+  var day=(S.reportDate||"").slice(8,10).replace(/^0/,"");
+  var failRate = a ? pct(a.fail,a.total) : 0;
+  var passRate = a ? pct(a.pass,a.total) : 0;
+  var entered = DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(S.defects[t])||0); },0);
+  var etc = a ? Math.max(0,a.fail-entered) : 0;
+
+  var html = "";
+
+  // 타이틀
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">';
+  html += '<div>';
+  html += '<h1 style="font-size:18px;font-weight:700">야간책임운영실 <span style="color:#60a5fa">'+mon+'월'+day+'일</span> QC 현황</h1>';
+  if(S.fileName) html += '<div style="font-size:11px;color:#475569;margin-top:2px">📄 '+S.fileName+'</div>';
+  html += '</div>';
+  html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+  html += '<input type="date" id="datePicker" value="'+S.reportDate+'" style="background:#1e293b;border:1px solid #334155;border-radius:8px;color:#f1f5f9;padding:6px 10px;font-size:13px;outline:none"/>';
+  if(a && !S.saved){
+    html += '<button onclick="handleSave()" '+(S.saving?'disabled':'')+' style="background:#1e3a5f;border:1px solid #2563eb;border-radius:8px;color:#60a5fa;padding:6px 14px;cursor:pointer;font-size:13px">'+(S.saving?"저장 중...":"💾 실적 저장")+'</button>';
+  }
+  if(S.saveMsg) html += '<span style="font-size:12px;color:#4ade80">'+S.saveMsg+'</span>';
+  if(a) html += '<button onclick="resetAll()" style="background:#1e293b;border:1px solid #334155;border-radius:8px;color:#64748b;padding:6px 12px;cursor:pointer;font-size:13px">🔄</button>';
+  html += '</div></div>';
+
+  // 오류
+  if(S.error) html += '<div style="background:#450a0a;border:1px solid #f87171;border-radius:8px;padding:10px 14px;color:#fca5a5;margin-bottom:12px;font-size:13px">'+S.error+'</div>';
+
+  // 업로드
+  if(!a){
+    html += '<div class="upload-zone" onclick="document.getElementById(\'fi\').click()" ondragover="event.preventDefault()" ondrop="onDrop(event)">';
+    html += '<div style="font-size:36px;margin-bottom:10px">📂</div>';
+    html += '<div style="font-size:14px;color:#94a3b8;margin-bottom:6px">엑셀 또는 CSV 파일 업로드</div>';
+    html += '<div style="font-size:11px;color:#475569">.xlsx / .xls / .csv</div>';
+    html += '<input id="fi" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onFileChange(event)"/>';
+    html += '</div>';
+  }
+
+  // 대시보드
+  if(a){
+    // KPI
+    html += '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">';
+    var kpis=[
+      ["전체 QC",a.total.toLocaleString()+"건","#60a5fa"],
+      ["적합",a.pass.toLocaleString()+"건 ("+passRate+"%)","#4ade80"],
+      ["부적합",a.fail.toLocaleString()+"건 ("+failRate+"%)","#f87171"],
+      ["부적합률",failRate+"%","#fbbf24"]
+    ];
+    kpis.forEach(function(k){
+      html += '<div class="stat-card"><div style="font-size:11px;color:#64748b;margin-bottom:4px">'+k[0]+'</div>';
+      html += '<div style="font-size:26px;font-weight:700;color:'+k[2]+';line-height:1">'+k[1]+'</div></div>';
+    });
+    html += '</div>';
+
+    // 파이 + 얼룩체크
+    html += '<div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">';
+    html += '<div class="card" style="flex:0 0 200px;margin-bottom:0"><div style="font-size:11px;color:#64748b;margin-bottom:8px;font-weight:600">적합 / 부적합</div>';
+    html += '<canvas id="pieChart" height="130"></canvas></div>';
+    if(a.stainStats){
+      html += '<div class="card" style="flex:1;margin-bottom:0"><div style="font-size:11px;color:#64748b;margin-bottom:8px;font-weight:600">얼룩체크 Y/N → 부적합률</div>';
+      html += '<div style="display:flex;gap:10px;align-items:center">';
+      html += '<canvas id="stainChart" width="180" height="120"></canvas>';
+      html += '<div style="display:flex;flex-direction:column;gap:8px;flex:1">';
+      a.stainStats.forEach(function(st){
+        html += '<div style="background:#0f172a;border-radius:8px;padding:8px 12px">';
+        html += '<div style="font-size:10px;color:#64748b">'+st.name+'</div>';
+        html += '<div style="font-size:12px">총 <b style="color:#60a5fa">'+st.total+'</b>건 ';
+        html += '<span style="color:#4ade80">'+st.pass+'적합</span> ';
+        html += '<span style="color:#f87171">'+st.fail+'부적합</span></div>';
+        html += '<div style="font-size:14px;font-weight:700;color:'+(st.failRate>10?"#f87171":"#4ade80")+'">'+st.failRate+'%</div>';
+        html += '</div>';
+      });
+      html += '</div></div></div>';
+    }
+    html += '</div>';
+
+    // 품목별
+    if(a.itemStats.length>0){
+      html += '<div class="card">';
+      html += '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">';
+      html += '<div style="font-size:12px;font-weight:600;color:#94a3b8">품목별 QC 현황</div>';
+      html += '<div style="font-size:10px;color:#64748b">';
+      html += '<span style="display:inline-block;width:8px;height:8px;background:#60a5fa;border-radius:2px;margin-right:3px;vertical-align:middle"></span>총건수(좌) ';
+      html += '<span style="display:inline-block;width:12px;height:2px;background:#f87171;margin:0 3px;vertical-align:middle"></span>부적합률%(우)</div></div>';
+      html += '<canvas id="itemChart" height="220"></canvas></div>';
+    }
+
+    // 부적합 유형
+    html += '<div class="card">';
+    html += '<div style="font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px">부적합 유형 입력 <span style="font-size:11px;color:#475569;font-weight:400">총 부적합 <b style="color:#f87171">'+a.fail+'건</b></span></div>';
+    if(!S.defectSaved){
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">';
+      DEFECT_TYPES.forEach(function(t){
+        html += '<div style="display:flex;align-items:center;gap:6px;background:#0f172a;border-radius:8px;padding:8px 12px">';
+        html += '<span style="font-size:13px;color:#e2e8f0;min-width:32px">'+t+'</span>';
+        html += '<input type="number" min="0" value="'+(S.defects[t]||"")+'" id="def_'+t+'" onchange="updateDefect(\''+t+'\',this.value)" style="width:60px;text-align:center;color:#f87171;background:#1e293b;border:1px solid #334155;border-radius:6px;padding:5px 8px;font-size:13px;outline:none"/>';
+        html += '<span style="font-size:11px;color:#475569">건</span></div>';
+      });
+      html += '<div style="display:flex;align-items:center;gap:6px;background:#0f172a;border-radius:8px;padding:8px 12px;opacity:0.6">';
+      html += '<span style="font-size:13px;color:#94a3b8;min-width:32px">기타</span>';
+      html += '<span id="etc_count" style="width:60px;text-align:center;color:#94a3b8;font-size:13px">'+etc+'</span>';
+      html += '<span style="font-size:11px;color:#475569">건 (자동)</span></div></div>';
+      html += '<button onclick="saveDefects()" style="background:#1e3a5f;border:1px solid #2563eb;border-radius:8px;color:#60a5fa;padding:7px 18px;cursor:pointer;font-size:13px">확인</button>';
+    } else if(S.defectData){
+      html += '<canvas id="defectChart" height="'+(Math.max(100,S.defectData.length*38))+'"></canvas>';
+      html += '<button onclick="setState({defectSaved:false})" style="background:#1e293b;border:1px solid #334155;border-radius:8px;color:#64748b;padding:5px 12px;cursor:pointer;font-size:11px;margin-top:8px">수정</button>';
+    }
+    html += '</div>';
+  }
+
+  // 날짜별 트렌드
+  if(S.records.length>0){
+    html += '<div class="card">';
+    html += '<div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">';
+    html += '<div style="font-size:12px;font-weight:600;color:#94a3b8">날짜별 QC 실적 추이</div>';
+    html += '<div style="font-size:10px;color:#64748b">';
+    html += '<span style="display:inline-block;width:8px;height:8px;background:#60a5fa;border-radius:2px;margin-right:3px;vertical-align:middle"></span>총QC건수(좌) ';
+    html += '<span style="display:inline-block;width:12px;height:2px;background:#f87171;margin:0 3px;vertical-align:middle"></span>부적합률%(우)</div>';
+    html += '<button onclick="loadRecords()" style="margin-left:auto;background:none;border:none;color:#475569;cursor:pointer;font-size:11px">🔄 새로고침</button>';
+    html += '</div>';
+    html += '<canvas id="trendChart" height="180"></canvas></div>';
+  }
+
+  document.getElementById("app").innerHTML = html;
+
+  // 날짜 변경 이벤트
+  var dp = document.getElementById("datePicker");
+  if(dp) dp.addEventListener("change", function(e){ S.reportDate=e.target.value; render(); });
+
+  // 차트 그리기
+  setTimeout(drawCharts, 30);
+}
+
+// ── Chart.js 차트 ─────────────────────────────────────────────────────────────
+var charts = {};
+function destroyChart(id){
+  if(charts[id]){ charts[id].destroy(); delete charts[id]; }
+}
+
+function drawCharts(){
+  var a = S.analysis;
+
+  // 파이
+  var pieEl = document.getElementById("pieChart");
+  if(pieEl && a){
+    destroyChart("pie");
+    charts["pie"] = new Chart(pieEl, {
+      type:"doughnut",
+      data:{
+        labels:["적합","부적합"],
+        datasets:[{data:[a.pass,a.fail], backgroundColor:["#4ade80","#f87171"],
+          borderColor:"#0f172a", borderWidth:3}]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          datalabels:{color:"#0f172a", font:{size:11,weight:"bold"},
+            formatter:function(v,ctx){
+              var total=ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+              return ctx.chart.data.labels[ctx.dataIndex]+"\n"+(total>0?(v/total*100).toFixed(0):0)+"%";
+            }}
+        }
+      }
+    });
+  }
+
+  // 얼룩체크
+  var stainEl = document.getElementById("stainChart");
+  if(stainEl && a && a.stainStats){
+    destroyChart("stain");
+    charts["stain"] = new Chart(stainEl, {
+      type:"bar",
+      data:{
+        labels: a.stainStats.map(function(s){return s.key;}),
+        datasets:[{
+          data: a.stainStats.map(function(s){return s.failRate;}),
+          backgroundColor: a.stainStats.map(function(s){return s.key==="Y"?"#f87171":"#4ade80";}),
+          borderRadius:6, borderSkipped:false
+        }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          datalabels:{color:"#f1f5f9", font:{size:12,weight:"bold"}, anchor:"end", align:"start",
+            formatter:function(v){return v+"%";}}
+        },
+        scales:{
+          x:{ticks:{color:"#94a3b8",font:{size:11}}, grid:{color:"#334155"}},
+          y:{display:false, max:100}
+        }
+      }
+    });
+  }
+
+  // 품목별 콤보
+  var itemEl = document.getElementById("itemChart");
+  if(itemEl && a && a.itemStats.length>0){
+    destroyChart("item");
+    charts["item"] = new Chart(itemEl, {
+      type:"bar",
+      data:{
+        labels: a.itemStats.map(function(d){return d.name;}),
+        datasets:[
+          {type:"bar", label:"총건수", data:a.itemStats.map(function(d){return d.total;}),
+            backgroundColor:"#3b82f688", borderColor:"#60a5fa", borderWidth:2,
+            borderRadius:4, yAxisID:"y1",
+            datalabels:{color:"#93c5fd", font:{size:10,weight:"bold"}, anchor:"end", align:"top",
+              formatter:function(v){return v;}}},
+          {type:"line", label:"부적합률", data:a.itemStats.map(function(d){return d.failRate;}),
+            borderColor:"#f87171", backgroundColor:"transparent",
+            borderWidth:2, pointRadius:5, pointBackgroundColor:"#f87171",
+            tension:0.3, yAxisID:"y2",
+            datalabels:{color:"#f87171", font:{size:10,weight:"bold"}, anchor:"end", align:"top", offset:4,
+              formatter:function(v){return v+"%";}}}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{backgroundColor:"#1e293b", titleColor:"#f1f5f9", bodyColor:"#94a3b8",
+            borderColor:"#334155", borderWidth:1}
+        },
+        scales:{
+          x:{ticks:{color:"#94a3b8", font:{size:11}, maxRotation:30},
+            grid:{color:"#334155"}},
+          y1:{position:"left", ticks:{color:"#60a5fa",font:{size:10}},
+            grid:{color:"#334155"}},
+          y2:{position:"right", min:0, max:100,
+            ticks:{color:"#f87171",font:{size:10},callback:function(v){return v+"%";}},
+            grid:{drawOnChartArea:false}}
+        }
+      }
+    });
+  }
+
+  // 부적합 유형 가로바
+  var defEl = document.getElementById("defectChart");
+  if(defEl && S.defectData && S.defectData.length>0){
+    destroyChart("defect");
+    charts["defect"] = new Chart(defEl, {
+      type:"bar",
+      data:{
+        labels: S.defectData.map(function(d){return d.name;}),
+        datasets:[{
+          data: S.defectData.map(function(d){return d.value;}),
+          backgroundColor: S.defectData.map(function(d){return d.color;}),
+          borderRadius:6, borderSkipped:false
+        }]
+      },
+      options:{
+        indexAxis:"y", responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          datalabels:{color:"#f1f5f9", font:{size:12,weight:"bold"}, anchor:"end", align:"right",
+            formatter:function(v,ctx){
+              return v+"건 ("+(S.analysis?pct(v,S.analysis.fail):0)+"%)";
+            }}
+        },
+        scales:{
+          x:{display:false},
+          y:{ticks:{color:"#94a3b8",font:{size:12}}, grid:{display:false}}
+        }
+      }
+    });
+  }
+
+  // 트렌드
+  var trendEl = document.getElementById("trendChart");
+  if(trendEl && S.records.length>0){
+    destroyChart("trend");
+    charts["trend"] = new Chart(trendEl, {
+      type:"bar",
+      data:{
+        labels: S.records.map(function(r){return r.label;}),
+        datasets:[
+          {type:"bar", label:"총QC건수",
+            data:S.records.map(function(r){return r.total;}),
+            backgroundColor:"#3b82f688", borderColor:"#60a5fa", borderWidth:2,
+            borderRadius:4, yAxisID:"y1",
+            datalabels:{color:"#93c5fd", font:{size:10,weight:"bold"}, anchor:"end", align:"top",
+              formatter:function(v){return v;}}},
+          {type:"line", label:"부적합률",
+            data:S.records.map(function(r){return r.failRate;}),
+            borderColor:"#f87171", backgroundColor:"transparent",
+            borderWidth:2, pointRadius:5, pointBackgroundColor:"#f87171",
+            tension:0.3, yAxisID:"y2",
+            datalabels:{color:"#f87171", font:{size:10,weight:"bold"}, anchor:"end", align:"top", offset:4,
+              formatter:function(v){return v+"%";}}}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",
+            borderColor:"#334155",borderWidth:1}
+        },
+        scales:{
+          x:{ticks:{color:"#94a3b8",font:{size:11}}, grid:{color:"#334155"}},
+          y1:{position:"left", ticks:{color:"#60a5fa",font:{size:10}}, grid:{color:"#334155"}},
+          y2:{position:"right", min:0, max:100,
+            ticks:{color:"#f87171",font:{size:10},callback:function(v){return v+"%";}},
+            grid:{drawOnChartArea:false}}
+        }
+      }
+    });
+  }
+}
+
+// ── 초기 실행 ─────────────────────────────────────────────────────────────────
+S.records = loadLocal();
+render();
+loadRecords();
+</script>
+</body>
+</html>
