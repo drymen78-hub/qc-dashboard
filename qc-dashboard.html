@@ -26,13 +26,15 @@ var useRef    = React.useRef;
 var CE        = React.createElement;
 Chart.register(ChartDataLabels);
 
-var GAS_URL = "https://script.google.com/macros/s/AKfycbyQSpwiQBOuLF2oaOaW-Ka35XFmAg9Yp4vmh4P1ByPMUerACu6Ou56-1x4JEuT4_zE8Jw/exec";
+var GAS_URL = "https://script.google.com/macros/s/AKfycbyO1cT1t82aTs59KPn_uGs0nriGeIMKx0az7ZRWsx_PpIDMVHnJIXTJDz8-Dd9EVODL6g/exec";
 var DEFECT_TYPES  = ["얼룩","손상","먼지"];
 var DEFECT_COLORS = ["#f87171","#fbbf24","#a78bfa","#94a3b8"];
 
 function st(v){ return (v==null?"":String(v)).trim(); }
 function isPass(v){ var t=st(v).replace(/\s/g,""); return t.includes("적합")&&!t.includes("부적합"); }
 function isFail(v){ var t=st(v).replace(/\s/g,""); return t.includes("부적합")||t.includes("불합격"); }
+function isY(v){ return st(v)==="Y"; }
+function isN(v){ return st(v)==="N"; }
 function fuzzy(cols,t){
   return cols.find(function(c){ return st(c).replace(/\s/g,"")=== t.replace(/\s/g,""); })
       || cols.find(function(c){ return st(c).includes(t); });
@@ -57,7 +59,7 @@ function ChartBox(props){
   );
 }
 
-/* ── 품목별: y2 min=-150, 막대 안 건수, 막대 위 부적합률 ── */
+/* ── 품목별 config ────────────────────────────────── */
 function makeItemConfig(labels, barData, lineData){
   var maxBar = Math.max.apply(null, barData.concat([1]));
   return {
@@ -65,62 +67,41 @@ function makeItemConfig(labels, barData, lineData){
     data:{
       labels:labels,
       datasets:[
-        {
-          type:"bar", label:"총건수", data:barData,
-          backgroundColor:"#3b82f699", borderColor:"#60a5fa", borderWidth:2, borderRadius:4,
-          yAxisID:"y1",
-          datalabels:{
-            color:"#fff", font:{size:11,weight:"bold"},
-            anchor:"center", align:"center",
-            formatter:function(v){ return v>0?v.toLocaleString()+"건":""; }
-          }
+        { type:"bar", label:"총건수", data:barData,
+          backgroundColor:"#3b82f699", borderColor:"#60a5fa", borderWidth:2, borderRadius:4, yAxisID:"y1",
+          datalabels:{ color:"#fff", font:{size:10,weight:"bold"}, anchor:"center", align:"center",
+            formatter:function(v){ return v>0?v.toLocaleString()+"건":""; } }
         },
-        {
-          type:"line", label:"부적합률", data:lineData,
+        { type:"line", label:"부적합률", data:lineData,
           borderColor:"#f87171", backgroundColor:"transparent",
-          borderWidth:2, pointRadius:5, pointBackgroundColor:"#f87171", tension:0.3,
-          yAxisID:"y2",
-          datalabels:{
-            color:"#fff", font:{size:11,weight:"bold"},
-            backgroundColor:"#f87171", borderRadius:4,
-            padding:{left:4,right:4,top:2,bottom:2},
+          borderWidth:2, pointRadius:4, pointBackgroundColor:"#f87171", tension:0.3, yAxisID:"y2",
+          datalabels:{ color:"#fff", font:{size:10,weight:"bold"},
+            backgroundColor:"#f87171", borderRadius:4, padding:{left:3,right:3,top:2,bottom:2},
             anchor:"end", align:"top", offset:4,
-            formatter:function(v){ return v+"%"; }
-          }
+            formatter:function(v){ return v+"%"; } }
         }
       ]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
       interaction:{mode:"index",intersect:false},
-      layout:{padding:{top:32,right:8}},
-      plugins:{
-        legend:{display:false},
-        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1}
-      },
+      layout:{padding:{top:28,right:8}},
+      plugins:{ legend:{display:false},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1} },
       scales:{
-        x:{
-          ticks:{color:"#e2e8f0",font:{size:11,weight:"bold"},maxRotation:0,autoSkip:false},
-          grid:{color:"#334155"}
-        },
-        y1:{
-          position:"left", min:0, max:Math.ceil(maxBar*1.4),
-          ticks:{color:"#93c5fd",font:{size:11,weight:"bold"},maxTicksLimit:5,
-            callback:function(v){ return Number.isInteger(v)?v.toLocaleString():""; }},
-          grid:{color:"#334155"}
-        },
-        y2:{
-          position:"right", min:-150, max:100,
-          ticks:{color:"#fca5a5",font:{size:11,weight:"bold"},
-            callback:function(v){ return v>=0?v+"%":""; }},
-          grid:{drawOnChartArea:false}
-        }
+        x:{ ticks:{color:"#e2e8f0",font:{size:9,weight:"bold"},maxRotation:0,autoSkip:false}, grid:{color:"#334155"} },
+        y1:{ position:"left", min:0, max:Math.ceil(maxBar*1.4),
+          ticks:{color:"#93c5fd",font:{size:9,weight:"bold"},maxTicksLimit:5,
+            callback:function(v){ return Number.isInteger(v)?v.toLocaleString():""; }}, grid:{color:"#334155"} },
+        y2:{ position:"right", min:-150, max:100,
+          ticks:{color:"#fca5a5",font:{size:9,weight:"bold"}, callback:function(v){ return v>=0?v+"%":""; }},
+          grid:{drawOnChartArea:false} }
       }
     }
   };
 }
 
-/* ── 트렌드: y2 0~100, 막대 위 건수, 빨간 배경 부적합률 ── */
+/* ── 트렌드 config ────────────────────────────────── */
 function makeTrendConfig(labels, barData, lineData){
   var maxBar = Math.max.apply(null, barData.concat([1]));
   return {
@@ -128,184 +109,145 @@ function makeTrendConfig(labels, barData, lineData){
     data:{
       labels:labels,
       datasets:[
-        {
-          type:"bar", label:"총QC건수", data:barData,
-          backgroundColor:"#3b82f699", borderColor:"#60a5fa", borderWidth:2, borderRadius:4,
-          yAxisID:"y1",
-          datalabels:{
-            color:"#93c5fd", font:{size:12,weight:"bold"},
-            anchor:"end", align:"top", offset:2,
-            formatter:function(v){ return v>0?v.toLocaleString()+"건":""; }
-          }
+        { type:"bar", label:"총QC건수", data:barData,
+          backgroundColor:"#3b82f699", borderColor:"#60a5fa", borderWidth:2, borderRadius:4, yAxisID:"y1",
+          datalabels:{ color:"#93c5fd", font:{size:10,weight:"bold"}, anchor:"end", align:"top", offset:2,
+            formatter:function(v){ return v>0?v.toLocaleString()+"건":""; } }
         },
-        {
-          type:"line", label:"부적합률", data:lineData,
+        { type:"line", label:"부적합률", data:lineData,
           borderColor:"#f87171", backgroundColor:"transparent",
-          borderWidth:2, pointRadius:5, pointBackgroundColor:"#f87171", tension:0.3,
-          yAxisID:"y2",
-          datalabels:{
-            color:"#fff", font:{size:12,weight:"bold"},
-            backgroundColor:"#f87171", borderRadius:4,
-            padding:{left:4,right:4,top:2,bottom:2},
+          borderWidth:2, pointRadius:4, pointBackgroundColor:"#f87171", tension:0.3, yAxisID:"y2",
+          datalabels:{ color:"#fff", font:{size:10,weight:"bold"},
+            backgroundColor:"#f87171", borderRadius:4, padding:{left:3,right:3,top:2,bottom:2},
             anchor:"end", align:"top", offset:4,
-            formatter:function(v){ return v+"%"; }
-          }
+            formatter:function(v){ return v+"%"; } }
         }
       ]
     },
     options:{
       responsive:true, maintainAspectRatio:false,
       interaction:{mode:"index",intersect:false},
-      layout:{padding:{top:32,right:8}},
-      plugins:{
-        legend:{display:false},
-        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1}
-      },
+      layout:{padding:{top:28,right:8}},
+      plugins:{ legend:{display:false},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1} },
       scales:{
-        x:{
-          ticks:{color:"#e2e8f0",font:{size:12,weight:"bold"}},
-          grid:{color:"#334155"}
-        },
-        y1:{
-          position:"left", min:0, max:Math.ceil(maxBar*1.4),
-          ticks:{color:"#93c5fd",font:{size:11,weight:"bold"},maxTicksLimit:5,
-            callback:function(v){ return Number.isInteger(v)?v.toLocaleString():""; }},
-          grid:{color:"#334155"}
-        },
-        y2:{
-          position:"right", min:0, max:100,
-          ticks:{color:"#fca5a5",font:{size:11,weight:"bold"},
-            callback:function(v){ return v+"%"; }},
-          grid:{drawOnChartArea:false}
-        }
+        x:{ ticks:{color:"#e2e8f0",font:{size:10,weight:"bold"}}, grid:{color:"#334155"} },
+        y1:{ position:"left", min:0, max:Math.ceil(maxBar*1.4),
+          ticks:{color:"#93c5fd",font:{size:9,weight:"bold"},maxTicksLimit:5,
+            callback:function(v){ return Number.isInteger(v)?v.toLocaleString():""; }}, grid:{color:"#334155"} },
+        y2:{ position:"right", min:0, max:100,
+          ticks:{color:"#fca5a5",font:{size:9,weight:"bold"}, callback:function(v){ return v+"%"; }},
+          grid:{drawOnChartArea:false} }
       }
     }
   };
 }
 
-/* ── 파이차트 ─────────────────────────────────────── */
+/* ── 얼룩체크 config ──────────────────────────────── */
+function makeStainConfig(yVal, nVal){
+  return {
+    type:"bar",
+    data:{
+      labels:["사전 얼룩체크","사전 미체크"],
+      datasets:[{
+        data:[yVal,nVal],
+        backgroundColor:["#f8717188","#4ade8088"],
+        borderColor:["#f87171","#4ade80"],
+        borderWidth:2, borderRadius:6,
+        datalabels:{ color:"#fff", font:{size:13,weight:"bold"}, anchor:"end", align:"top", offset:6,
+          formatter:function(v){ return v+"건"; } }
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      layout:{padding:{top:28,right:8}},
+      plugins:{ legend:{display:false},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1} },
+      scales:{
+        x:{ ticks:{color:"#e2e8f0",font:{size:12,weight:"bold"}}, grid:{color:"#334155"} },
+        y:{ ticks:{color:"#94a3b8",font:{size:10,weight:"bold"},maxTicksLimit:5}, grid:{color:"#334155"} }
+      }
+    }
+  };
+}
+
+/* ── 파이 config ──────────────────────────────────── */
 function makePieConfig(pass, fail){
   return {
     type:"doughnut",
-    data:{
-      labels:["적합","부적합"],
-      datasets:[{data:[pass,fail],backgroundColor:["#4ade80","#f87171"],borderColor:"#1e293b",borderWidth:3}]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:true,
+    data:{ labels:["적합","부적합"],
+      datasets:[{data:[pass,fail],backgroundColor:["#4ade80","#f87171"],borderColor:"#1e293b",borderWidth:3}] },
+    options:{ responsive:true, maintainAspectRatio:true,
       plugins:{
-        legend:{position:"bottom",labels:{color:"#e2e8f0",font:{size:12,weight:"bold"},padding:8}},
-        datalabels:{
-          color:"#fff", font:{size:13,weight:"bold"},
+        legend:{position:"bottom",labels:{color:"#e2e8f0",font:{size:11,weight:"bold"},padding:6}},
+        datalabels:{ color:"#fff", font:{size:12,weight:"bold"},
           formatter:function(v,ctx){
             var tot=ctx.dataset.data.reduce(function(a,b){ return a+b; },0);
             return tot>0?(v/tot*100).toFixed(0)+"%":"";
-          }
-        }
+          } }
       }
     }
   };
 }
 
-/* ── App ─────────────────────────────────────────── */
-function App(){
-  var s;
-  s=useState(null);   var analysis=s[0];    var setAnalysis=s[1];
-  s=useState("");     var fileName=s[0];    var setFileName=s[1];
-  s=useState(new Date().toISOString().slice(0,10)); var reportDate=s[0]; var setReportDate=s[1];
-  s=useState({얼룩:"",손상:"",먼지:""}); var defects=s[0]; var setDefects=s[1];
-  s=useState(false);  var defectSaved=s[0]; var setDefectSaved=s[1];
-  s=useState(null);   var defectData=s[0];  var setDefectData=s[1];
-  s=useState([]);     var records=s[0];     var setRecords=s[1];
-  s=useState(false);  var saved=s[0];       var setSaved=s[1];
-  s=useState(false);  var saving=s[0];      var setSaving=s[1];
-  s=useState("");     var saveMsg=s[0];     var setSaveMsg=s[1];
-  s=useState("");     var error=s[0];       var setError=s[1];
+/* ── 데이터 분석 함수 ─────────────────────────────── */
+function analyzeRows(rows, typeFilter){
+  var cols = Object.keys(rows[0]);
+  var rC = fuzzy(cols,"품질검사결과");
+  var iC = fuzzy(cols,"품목명")||fuzzy(cols,"중분류");
+  var sC = fuzzy(cols,"얼룩체크");
+  var tC = fuzzy(cols,"세탁방법");
 
-  var mon=(reportDate||"").slice(5,7).replace(/^0/,"");
-  var day=(reportDate||"").slice(8,10).replace(/^0/,"");
+  var filtered = tC
+    ? rows.filter(function(r){ return st(r[tC]).includes(typeFilter); })
+    : rows;
 
-  useEffect(function(){
-    fetch(GAS_URL)
-      .then(function(r){ return r.json(); })
-      .then(function(rows){
-        var recs=rows
-          .filter(function(r){ return r[0]&&r[0]!=="날짜"; })
-          .map(function(r){
-            var raw=st(r[0]).slice(0,10);
-            return {date:raw,label:raw.slice(5).replace("-","/"),
-              total:Number(r[1]),pass:Number(r[2]),fail:Number(r[3]),failRate:Number(r[4])};
-          })
-          .sort(function(a,b){ return a.date.localeCompare(b.date); });
-        setRecords(recs);
-        try{ localStorage.setItem("qc_recs",JSON.stringify(recs)); }catch(e){}
-      })
-      .catch(function(){
-        try{ setRecords(JSON.parse(localStorage.getItem("qc_recs")||"[]")); }catch(e){}
-      });
-  },[]);
+  if(!filtered.length) return null;
 
-  function parseFile(file){
-    setFileName(file.name); setError(""); setDefectSaved(false); setDefectData(null);
-    setSaved(false); setSaveMsg(""); setDefects({얼룩:"",손상:"",먼지:""}); setAnalysis(null);
-    var reader=new FileReader();
-    reader.onload=function(e){
-      try{
-        var wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
-        var ws=wb.Sheets[wb.SheetNames[0]];
-        var rows=XLSX.utils.sheet_to_json(ws,{defval:"",raw:false});
-        if(!rows.length){ setError("데이터 없음"); return; }
-        var cols=Object.keys(rows[0]);
-        var rC=fuzzy(cols,"품질검사결과");
-        var iC=fuzzy(cols,"품목명")||fuzzy(cols,"중분류");
-        var total=rows.length,pass=0,fail=0;
-        rows.forEach(function(r){ if(isPass(r[rC]))pass++; else if(isFail(r[rC]))fail++; });
-        var iMap={};
-        rows.forEach(function(r){
-          var item=st(r[iC])||"미기재";
-          if(!iMap[item])iMap[item]={pass:0,fail:0};
-          if(isPass(r[rC]))iMap[item].pass++; else if(isFail(r[rC]))iMap[item].fail++;
-        });
-        var itemStats=Object.entries(iMap)
-          .map(function(en){ return {name:en[0],pass:en[1].pass,fail:en[1].fail,
-            total:en[1].pass+en[1].fail,failRate:pct(en[1].fail,en[1].pass+en[1].fail)}; })
-          .sort(function(a,b){ return b.total-a.total; }).slice(0,12);
-        setAnalysis({total:total,pass:pass,fail:fail,itemStats:itemStats});
-      }catch(err){ setError("파싱 오류: "+err.message); }
-    };
-    reader.readAsArrayBuffer(file);
+  var total=filtered.length, pass=0, fail=0;
+  filtered.forEach(function(r){ if(isPass(r[rC]))pass++; else if(isFail(r[rC]))fail++; });
+
+  var iMap={};
+  filtered.forEach(function(r){
+    var item=st(r[iC])||"미기재";
+    if(!iMap[item])iMap[item]={pass:0,fail:0};
+    if(isPass(r[rC]))iMap[item].pass++; else if(isFail(r[rC]))iMap[item].fail++;
+  });
+  var itemStats=Object.entries(iMap)
+    .map(function(en){ return {name:en[0],pass:en[1].pass,fail:en[1].fail,
+      total:en[1].pass+en[1].fail,failRate:pct(en[1].fail,en[1].pass+en[1].fail)}; })
+    .sort(function(a,b){ return b.total-a.total; }).slice(0,12);
+
+  var stainY=0, stainN=0;
+  if(sC){
+    filtered.forEach(function(r){
+      if(!isFail(r[rC])) return;
+      if(isY(r[sC])) stainY++; else if(isN(r[sC])) stainN++;
+    });
   }
 
-  function handleSave(){
-    if(!analysis||!reportDate) return;
-    setSaving(true); setSaveMsg("");
-    var defectFilled={};
-    if(defectSaved&&defectData) defectData.forEach(function(x){ defectFilled["defect_"+x.name]=x.value; });
-    var fr=pct(analysis.fail,analysis.total);
-    var payload=Object.assign({date:reportDate,total:analysis.total,pass:analysis.pass,fail:analysis.fail,failRate:fr},defectFilled);
-    var newRec={date:reportDate,label:reportDate.slice(5).replace("-","/"),
-      total:analysis.total,pass:analysis.pass,fail:analysis.fail,failRate:fr};
-    var updated=records.filter(function(r){ return r.date!==reportDate; });
-    updated.push(newRec); updated.sort(function(a,b){ return a.date.localeCompare(b.date); });
-    try{ localStorage.setItem("qc_recs",JSON.stringify(updated)); }catch(e){}
-    setRecords(updated);
-    fetch(GAS_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(payload)})
-      .then(function(){ setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); })
-      .catch(function(){ setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); });
-  }
+  return {total:total,pass:pass,fail:fail,itemStats:itemStats,
+    stainY:stainY,stainN:stainN,hasStain:!!sC};
+}
 
-  function doSaveDefects(){
-    var entered=DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(defects[t])||0); },0);
-    var etc=Math.max(0,analysis.fail-entered);
-    var data=DEFECT_TYPES.map(function(t,i){ return {name:t,value:Number(defects[t])||0,color:DEFECT_COLORS[i]}; });
-    if(etc>0) data.push({name:"기타",value:etc,color:DEFECT_COLORS[3]});
-    data=data.filter(function(d){ return d.value>0; });
-    setDefectData(data); setDefectSaved(true);
-  }
+/* ── QC패널 컴포넌트 ──────────────────────────────── */
+function QCPanel(props){
+  var title    = props.title;
+  var color    = props.color;   // 헤더 강조색
+  var analysis = props.analysis;
+  var defects  = props.defects;
+  var setDefects = props.setDefects;
+  var defectSaved  = props.defectSaved;
+  var setDefectSaved = props.setDefectSaved;
+  var defectData   = props.defectData;
+  var setDefectData = props.setDefectData;
+  var records  = props.records;
 
-  var failRate=analysis?pct(analysis.fail,analysis.total):0;
-  var entered=DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(defects[t])||0); },0);
-  var etc=analysis?Math.max(0,analysis.fail-entered):0;
+  var failRate = analysis?pct(analysis.fail,analysis.total):0;
+  var entered  = DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(defects[t])||0); },0);
+  var etc      = analysis?Math.max(0,analysis.fail-entered):0;
+  var stainTotal = analysis?analysis.stainY+analysis.stainN:0;
+  var stainNRate = stainTotal>0?Math.round(analysis.stainN/stainTotal*100):0;
 
   var pieConfig   = analysis?makePieConfig(analysis.pass,analysis.fail):null;
   var itemConfig  = (analysis&&analysis.itemStats.length>0)
@@ -320,142 +262,293 @@ function App(){
         records.map(function(r){ return r.total; }),
         records.map(function(r){ return r.failRate; })
       ):null;
+  var stainConfig = (analysis&&analysis.hasStain&&stainTotal>0)
+    ? makeStainConfig(analysis.stainY,analysis.stainN):null;
 
-  var CARD={background:"#1e293b",borderRadius:8,padding:"10px 12px",marginBottom:8};
+  var CARD={background:"#1e293b",borderRadius:8,padding:"8px 10px",marginBottom:6};
 
-  return CE("div",{style:{maxWidth:960,margin:"0 auto"}},
+  function doSaveDefects(){
+    var ent=DEFECT_TYPES.reduce(function(s,t){ return s+(Number(defects[t])||0); },0);
+    var e=Math.max(0,analysis.fail-ent);
+    var data=DEFECT_TYPES.map(function(t,i){ return {name:t,value:Number(defects[t])||0,color:DEFECT_COLORS[i]}; });
+    if(e>0) data.push({name:"기타",value:e,color:DEFECT_COLORS[3]});
+    data=data.filter(function(d){ return d.value>0; });
+    setDefectData(data); setDefectSaved(true);
+  }
 
-    /* 타이틀 */
+  return CE("div",{style:{flex:1,minWidth:0}},
+
+    /* 패널 헤더 */
+    CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"8px 12px",marginBottom:6,
+      borderLeft:"4px solid "+color}},
+      CE("div",{style:{fontSize:15,fontWeight:800,color:color}},title)
+    ),
+
+    !analysis?CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"20px",textAlign:"center",color:"#475569",fontSize:12}},
+      "파일을 업로드하면 자동으로 분석됩니다"
+    ):CE("div",null,
+
+      /* KPI */
+      CE("div",{style:{display:"flex",gap:6,marginBottom:6}},
+        [["전체 QC",analysis.total.toLocaleString()+"건","#60a5fa"],
+         ["부적합",analysis.fail.toLocaleString()+"건","#f87171"],
+         ["부적합률",failRate+"%","#fbbf24"]
+        ].map(function(k){
+          return CE("div",{key:k[0],style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
+            height:70,display:"flex",flexDirection:"column",justifyContent:"center"}},
+            CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:2}},k[0]),
+            CE("div",{style:{fontSize:22,fontWeight:800,color:k[2],lineHeight:1}},k[1])
+          );
+        })
+      ),
+
+      /* 부적합 유형 */
+      CE("div",{style:{display:"flex",gap:6,marginBottom:6,alignItems:"stretch"}},
+        !defectSaved
+          ? DEFECT_TYPES.map(function(t){
+              return CE("div",{key:t,style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
+                height:70,display:"flex",flexDirection:"column",justifyContent:"center"}},
+                CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:2}},t),
+                CE("input",{type:"number",min:"0",value:defects[t],
+                  onChange:function(e){ var v=e.target.value; setDefects(function(p){ return Object.assign({},p,{[t]:v}); }); },
+                  style:{width:"100%",textAlign:"center",color:"#f87171",background:"#0f172a",
+                    border:"1px solid #334155",borderRadius:6,padding:"3px",fontSize:16,fontWeight:800,outline:"none"}})
+              );
+            }).concat([
+              CE("div",{key:"etc",style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
+                height:70,display:"flex",flexDirection:"column",justifyContent:"center",opacity:0.5}},
+                CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:2}},"기타"),
+                CE("div",{style:{fontSize:16,fontWeight:800,color:"#94a3b8",textAlign:"center"}},etc)
+              ),
+              CE("div",{key:"btn",style:{display:"flex",alignItems:"center"}},
+                CE("button",{onClick:doSaveDefects,
+                  style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:6,color:"#60a5fa",
+                    padding:"5px 8px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}},"확인")
+              )
+            ])
+          : (defectData||[]).map(function(d){
+              return CE("div",{key:d.name,style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
+                height:70,display:"flex",flexDirection:"column",justifyContent:"center",borderTop:"2px solid "+d.color}},
+                CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:1}},d.name),
+                CE("div",{style:{fontSize:22,fontWeight:800,color:d.color,lineHeight:1}},d.value+"건"),
+                CE("div",{style:{fontSize:10,fontWeight:600,color:"#64748b",marginTop:1}},pct(d.value,analysis.fail)+"%")
+              );
+            }).concat([
+              CE("div",{key:"edit",style:{display:"flex",alignItems:"center"}},
+                CE("button",{onClick:function(){ setDefectSaved(false); },
+                  style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,
+                    color:"#94a3b8",padding:"5px 8px",cursor:"pointer",fontSize:11}},"수정")
+              )
+            ])
+      ),
+
+      /* 파이 */
+      CE("div",{style:Object.assign({},CARD,{display:"flex",alignItems:"center",gap:10})},
+        CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",flexShrink:0}},"적합/부적합"),
+        CE("div",{style:{position:"relative",flex:1,height:"90px"}},
+          CE(ChartBox,{config:pieConfig,height:"90px"})
+        )
+      ),
+
+      /* 품목별 */
+      analysis.itemStats.length>0?CE("div",{style:CARD},
+        CE("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:4}},
+          CE("div",{style:{fontSize:11,fontWeight:700,color:"#e2e8f0"}},"품목별 QC 현황"),
+          CE("div",{style:{fontSize:10,color:"#94a3b8",fontWeight:700,display:"flex",gap:6}},
+            CE("span",null,CE("span",{style:{display:"inline-block",width:6,height:6,background:"#60a5fa99",borderRadius:2,marginRight:2,verticalAlign:"middle"}}),"총건수"),
+            CE("span",null,CE("span",{style:{display:"inline-block",width:8,height:2,background:"#f87171",marginRight:2,verticalAlign:"middle"}}),"부적합률%")
+          )
+        ),
+        CE(ChartBox,{config:itemConfig,height:"180px"})
+      ):null,
+
+      /* 얼룩체크 */
+      stainConfig?CE("div",{style:CARD},
+        CE("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}},
+          CE("div",{style:{fontSize:11,fontWeight:700,color:"#e2e8f0"}},"QC 얼룩 발견 건 중 사전 얼룩체크 현황"),
+          CE("div",{style:{background:"#0f172a",border:"1px solid #f87171",borderRadius:6,padding:"4px 10px",textAlign:"center"}},
+            CE("div",{style:{fontSize:9,color:"#94a3b8",fontWeight:700,marginBottom:1}},"사전 미체크 얼룩발생률"),
+            CE("div",{style:{fontSize:16,fontWeight:800,color:"#f87171",lineHeight:1}},stainNRate+"%")
+          )
+        ),
+        CE(ChartBox,{config:stainConfig,height:"140px"})
+      ):null,
+
+      /* 트렌드 */
+      trendConfig?CE("div",{style:CARD},
+        CE("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:4}},
+          CE("div",{style:{fontSize:11,fontWeight:700,color:"#e2e8f0"}},"날짜별 실적 추이"),
+          CE("div",{style:{fontSize:10,color:"#94a3b8",fontWeight:700,display:"flex",gap:6}},
+            CE("span",null,CE("span",{style:{display:"inline-block",width:6,height:6,background:"#60a5fa99",borderRadius:2,marginRight:2,verticalAlign:"middle"}}),"총건수"),
+            CE("span",null,CE("span",{style:{display:"inline-block",width:8,height:2,background:"#f87171",marginRight:2,verticalAlign:"middle"}}),"부적합률%")
+          )
+        ),
+        CE(ChartBox,{config:trendConfig,height:"150px"})
+      ):null
+    )
+  );
+}
+
+/* ── 메인 App ─────────────────────────────────────── */
+function App(){
+  var s;
+  s=useState(new Date().toISOString().slice(0,10)); var reportDate=s[0]; var setReportDate=s[1];
+  s=useState("");     var fileName=s[0];      var setFileName=s[1];
+  s=useState(null);   var dryAnalysis=s[0];   var setDryAnalysis=s[1];
+  s=useState(null);   var wetAnalysis=s[0];   var setWetAnalysis=s[1];
+  s=useState({얼룩:"",손상:"",먼지:""}); var dryDefects=s[0]; var setDryDefects=s[1];
+  s=useState({얼룩:"",손상:"",먼지:""}); var wetDefects=s[0]; var setWetDefects=s[1];
+  s=useState(false);  var dryDefectSaved=s[0];  var setDryDefectSaved=s[1];
+  s=useState(false);  var wetDefectSaved=s[0];  var setWetDefectSaved=s[1];
+  s=useState(null);   var dryDefectData=s[0];   var setDryDefectData=s[1];
+  s=useState(null);   var wetDefectData=s[0];   var setWetDefectData=s[1];
+  s=useState([]);     var dryRecords=s[0];    var setDryRecords=s[1];
+  s=useState([]);     var wetRecords=s[0];    var setWetRecords=s[1];
+  s=useState(false);  var saved=s[0];         var setSaved=s[1];
+  s=useState(false);  var saving=s[0];        var setSaving=s[1];
+  s=useState("");     var saveMsg=s[0];       var setSaveMsg=s[1];
+  s=useState("");     var error=s[0];         var setError=s[1];
+
+  var mon=(reportDate||"").slice(5,7).replace(/^0/,"");
+  var day=(reportDate||"").slice(8,10).replace(/^0/,"");
+
+  useEffect(function(){
+    fetch(GAS_URL)
+      .then(function(r){ return r.json(); })
+      .then(function(rows){
+        var recs=rows.filter(function(r){ return r[0]&&r[0]!=="날짜"; })
+          .map(function(r){
+            var raw=st(r[0]).slice(0,10);
+            return {date:raw,label:raw.slice(5).replace("-","/"),
+              total:Number(r[1]),pass:Number(r[2]),fail:Number(r[3]),failRate:Number(r[4]),
+              wtotal:Number(r[10]),wpass:Number(r[11]),wfail:Number(r[12]),wfailRate:Number(r[13])};
+          })
+          .sort(function(a,b){ return a.date.localeCompare(b.date); });
+        var dry=recs.map(function(r){ return {date:r.date,label:r.label,total:r.total,pass:r.pass,fail:r.fail,failRate:r.failRate}; });
+        var wet=recs.map(function(r){ return {date:r.date,label:r.label,total:r.wtotal,pass:r.wpass,fail:r.wfail,failRate:r.wfailRate}; });
+        setDryRecords(dry.filter(function(r){ return r.total>0; }));
+        setWetRecords(wet.filter(function(r){ return r.total>0; }));
+        try{ localStorage.setItem("qc_dry",JSON.stringify(dry)); localStorage.setItem("qc_wet",JSON.stringify(wet)); }catch(e){}
+      })
+      .catch(function(){
+        try{
+          setDryRecords(JSON.parse(localStorage.getItem("qc_dry")||"[]"));
+          setWetRecords(JSON.parse(localStorage.getItem("qc_wet")||"[]"));
+        }catch(e){}
+      });
+  },[]);
+
+  function parseFile(file){
+    setFileName(file.name); setError("");
+    setDryAnalysis(null); setWetAnalysis(null);
+    setDryDefects({얼룩:"",손상:"",먼지:""}); setWetDefects({얼룩:"",손상:"",먼지:""});
+    setDryDefectSaved(false); setWetDefectSaved(false);
+    setDryDefectData(null); setWetDefectData(null);
+    setSaved(false); setSaveMsg("");
+    var reader=new FileReader();
+    reader.onload=function(e){
+      try{
+        var wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
+        var ws=wb.Sheets[wb.SheetNames[0]];
+        var rows=XLSX.utils.sheet_to_json(ws,{defval:"",raw:false});
+        if(!rows.length){ setError("데이터 없음"); return; }
+        var dry=analyzeRows(rows,"드라이");
+        var wet=analyzeRows(rows,"웨트");
+        setDryAnalysis(dry);
+        setWetAnalysis(wet);
+      }catch(err){ setError("파싱 오류: "+err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function handleSave(){
+    if((!dryAnalysis&&!wetAnalysis)||!reportDate) return;
+    setSaving(true); setSaveMsg("");
+
+    var dryFilled={};
+    if(dryDefectSaved&&dryDefectData) dryDefectData.forEach(function(x){ dryFilled["dry_defect_"+x.name]=x.value; });
+    var wetFilled={};
+    if(wetDefectSaved&&wetDefectData) wetDefectData.forEach(function(x){ wetFilled["wet_defect_"+x.name]=x.value; });
+
+    var a=dryAnalysis||{total:0,pass:0,fail:0,failRate:0};
+    var b=wetAnalysis||{total:0,pass:0,fail:0,failRate:0};
+
+    var payload=Object.assign({
+      date:reportDate,
+      dry_total:a.total, dry_pass:a.pass, dry_fail:a.fail, dry_failRate:pct(a.fail,a.total),
+      wet_total:b.total, wet_pass:b.pass, wet_fail:b.fail, wet_failRate:pct(b.fail,b.total)
+    },dryFilled,wetFilled);
+
+    // 로컬 저장
+    var label=reportDate.slice(5).replace("-","/");
+    var dryRec={date:reportDate,label:label,total:a.total,pass:a.pass,fail:a.fail,failRate:pct(a.fail,a.total)};
+    var wetRec={date:reportDate,label:label,total:b.total,pass:b.pass,fail:b.fail,failRate:pct(b.fail,b.total)};
+    var updDry=dryRecords.filter(function(r){ return r.date!==reportDate; }); updDry.push(dryRec); updDry.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    var updWet=wetRecords.filter(function(r){ return r.date!==reportDate; }); updWet.push(wetRec); updWet.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    setDryRecords(updDry); setWetRecords(updWet);
+    try{ localStorage.setItem("qc_dry",JSON.stringify(updDry)); localStorage.setItem("qc_wet",JSON.stringify(updWet)); }catch(e){}
+
+    fetch(GAS_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(payload)})
+      .then(function(){ setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); })
+      .catch(function(){ setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); });
+  }
+
+  return CE("div",{style:{maxWidth:1400,margin:"0 auto"}},
+
+    /* 타이틀 + 컨트롤 */
     CE("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:8}},
       CE("div",null,
         CE("h1",{style:{fontSize:20,fontWeight:800}},
           "야간책임운영실 ",CE("span",{style:{color:"#60a5fa"}},mon+"월"+day+"일")," QC 현황"),
-        fileName?CE("div",{style:{fontSize:12,color:"#94a3b8",marginTop:2,fontWeight:600}},"📄 "+fileName):null
+        fileName?CE("div",{style:{fontSize:11,color:"#94a3b8",marginTop:2,fontWeight:600}},"📄 "+fileName):null
       ),
       CE("div",{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}},
         CE("input",{type:"date",value:reportDate,
           onChange:function(e){ setReportDate(e.target.value); },
           style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,color:"#f1f5f9",padding:"5px 10px",fontSize:13,outline:"none"}}),
-        (analysis&&!saved)?CE("button",{onClick:handleSave,disabled:saving,
-          style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:6,color:"#60a5fa",padding:"5px 14px",cursor:"pointer",fontSize:13,fontWeight:700}},
+        CE("button",{
+          onClick:function(){ document.getElementById("fi").click(); },
+          style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,color:"#94a3b8",padding:"5px 12px",cursor:"pointer",fontSize:13,fontWeight:700}},"📂 파일 업로드"),
+        CE("input",{id:"fi",type:"file",accept:".xlsx,.xls,.csv",style:{display:"none"},
+          onChange:function(e){ if(e.target.files[0])parseFile(e.target.files[0]); }}),
+        ((dryAnalysis||wetAnalysis)&&!saved)?CE("button",{onClick:handleSave,disabled:saving,
+          style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:6,color:"#60a5fa",
+            padding:"5px 14px",cursor:"pointer",fontSize:13,fontWeight:700}},
           saving?"저장 중...":"💾 저장"):null,
         saveMsg?CE("span",{style:{fontSize:13,fontWeight:700,color:"#4ade80"}},saveMsg):null,
-        analysis?CE("button",{onClick:function(){
-            setAnalysis(null);setFileName("");setDefectSaved(false);setDefectData(null);
-            setSaved(false);setSaveMsg("");setDefects({얼룩:"",손상:"",먼지:""}); },
-          style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,color:"#94a3b8",padding:"5px 12px",cursor:"pointer",fontSize:13}},"🔄"):null
+        (dryAnalysis||wetAnalysis)?CE("button",{onClick:function(){
+            setDryAnalysis(null);setWetAnalysis(null);setFileName("");
+            setDryDefects({얼룩:"",손상:"",먼지:""});setWetDefects({얼룩:"",손상:"",먼지:""});
+            setDryDefectSaved(false);setWetDefectSaved(false);
+            setDryDefectData(null);setWetDefectData(null);
+            setSaved(false);setSaveMsg("");},
+          style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,
+            color:"#94a3b8",padding:"5px 10px",cursor:"pointer",fontSize:13}},"🔄"):null
       )
     ),
 
-    error?CE("div",{style:{background:"#450a0a",border:"1px solid #f87171",borderRadius:6,padding:"8px 12px",color:"#fca5a5",marginBottom:8,fontSize:13}},error):null,
+    error?CE("div",{style:{background:"#450a0a",border:"1px solid #f87171",borderRadius:6,
+      padding:"8px 12px",color:"#fca5a5",marginBottom:8,fontSize:13}},error):null,
 
-    /* 업로드 */
-    !analysis?CE("div",{
-      style:{border:"2px dashed #334155",borderRadius:12,padding:"32px 24px",textAlign:"center",cursor:"pointer",background:"#1e293b",marginBottom:8},
-      onClick:function(){ document.getElementById("fi").click(); },
-      onDragOver:function(e){ e.preventDefault(); },
-      onDrop:function(e){ e.preventDefault(); var f=e.dataTransfer&&e.dataTransfer.files[0]; if(f)parseFile(f); }},
-      CE("div",{style:{fontSize:32,marginBottom:8}},"📂"),
-      CE("div",{style:{fontSize:14,color:"#94a3b8",marginBottom:4}},"엑셀 또는 CSV 파일 업로드"),
-      CE("div",{style:{fontSize:12,color:"#475569"}},".xlsx / .xls / .csv"),
-      CE("input",{id:"fi",type:"file",accept:".xlsx,.xls,.csv",style:{display:"none"},
-        onChange:function(e){ if(e.target.files[0])parseFile(e.target.files[0]); }})
-    ):null,
-
-    analysis?CE("div",null,
-
-      /* Row1: KPI + 유형 + 파이 */
-      CE("div",{style:{display:"flex",gap:8,marginBottom:8,alignItems:"stretch"}},
-        CE("div",{style:{display:"flex",flexDirection:"column",gap:8,flex:1}},
-
-          /* KPI 3개 */
-          CE("div",{style:{display:"flex",gap:8}},
-            [["전체 QC",analysis.total.toLocaleString()+"건","#60a5fa"],
-             ["부적합",analysis.fail.toLocaleString()+"건","#f87171"],
-             ["부적합률",failRate+"%","#fbbf24"]
-            ].map(function(k){
-              return CE("div",{key:k[0],style:{background:"#1e293b",borderRadius:8,padding:"8px 12px",flex:1,height:80,display:"flex",flexDirection:"column",justifyContent:"center"}},
-                CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:4}},k[0]),
-                CE("div",{style:{fontSize:28,fontWeight:800,color:k[2],lineHeight:1}},k[1])
-              );
-            })
-          ),
-
-          /* 부적합 유형 */
-          CE("div",{style:{display:"flex",gap:8,alignItems:"stretch"}},
-            !defectSaved
-              ? DEFECT_TYPES.map(function(t){
-                  return CE("div",{key:t,style:{background:"#1e293b",borderRadius:8,padding:"8px 12px",flex:1,height:80,display:"flex",flexDirection:"column",justifyContent:"center"}},
-                    CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:4}},t),
-                    CE("input",{type:"number",min:"0",value:defects[t],
-                      onChange:function(e){ var v=e.target.value; setDefects(function(p){ return Object.assign({},p,{[t]:v}); }); },
-                      style:{width:"100%",textAlign:"center",color:"#f87171",background:"#0f172a",border:"1px solid #334155",borderRadius:6,padding:"4px",fontSize:20,fontWeight:800,outline:"none"}})
-                  );
-                }).concat([
-                  CE("div",{key:"etc",style:{background:"#1e293b",borderRadius:8,padding:"8px 12px",flex:1,height:80,display:"flex",flexDirection:"column",justifyContent:"center",opacity:0.5}},
-                    CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:4}},"기타"),
-                    CE("div",{style:{fontSize:20,fontWeight:800,color:"#94a3b8",textAlign:"center"}},etc)
-                  ),
-                  CE("div",{key:"btn",style:{display:"flex",alignItems:"center"}},
-                    CE("button",{onClick:doSaveDefects,
-                      style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:6,color:"#60a5fa",padding:"6px 10px",cursor:"pointer",fontSize:13,fontWeight:700,whiteSpace:"nowrap"}},"확인")
-                  )
-                ])
-              : (defectData||[]).map(function(d){
-                  return CE("div",{key:d.name,style:{background:"#1e293b",borderRadius:8,padding:"8px 12px",flex:1,height:80,display:"flex",flexDirection:"column",justifyContent:"center",borderTop:"2px solid "+d.color}},
-                    CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:2}},d.name),
-                    CE("div",{style:{fontSize:28,fontWeight:800,color:d.color,lineHeight:1}},d.value+"건"),
-                    CE("div",{style:{fontSize:12,fontWeight:600,color:"#64748b",marginTop:2}},pct(d.value,analysis.fail)+"%")
-                  );
-                }).concat([
-                  CE("div",{key:"edit",style:{display:"flex",alignItems:"center"}},
-                    CE("button",{onClick:function(){ setDefectSaved(false); },
-                      style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,color:"#94a3b8",padding:"6px 10px",cursor:"pointer",fontSize:12}},"수정")
-                  )
-                ])
-          )
-        ),
-
-        /* 파이차트 */
-        CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"10px 12px",width:170,flexShrink:0,display:"flex",flexDirection:"column"}},
-          CE("div",{style:{fontSize:13,fontWeight:700,color:"#94a3b8",marginBottom:4}},"적합 / 부적합"),
-          CE("div",{style:{position:"relative",flex:1}},
-            CE(ChartBox,{config:pieConfig,height:"100%"})
-          )
-        )
-      ),
-
-      /* Row2: 품목별 */
-      (analysis.itemStats.length>0)?CE("div",{style:CARD},
-        CE("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:6}},
-          CE("div",{style:{fontSize:13,fontWeight:700,color:"#e2e8f0"}},"품목별 QC 현황"),
-          CE("div",{style:{fontSize:12,color:"#94a3b8",fontWeight:700,display:"flex",gap:8}},
-            CE("span",null,CE("span",{style:{display:"inline-block",width:8,height:8,background:"#60a5fa99",borderRadius:2,marginRight:2,verticalAlign:"middle"}}),"총건수"),
-            CE("span",null,CE("span",{style:{display:"inline-block",width:10,height:2,background:"#f87171",marginRight:2,verticalAlign:"middle"}}),"부적합률%")
-          )
-        ),
-        CE(ChartBox,{config:itemConfig,height:"230px"})
-      ):null,
-
-      /* Row3: 트렌드 */
-      records.length>0?CE("div",{style:CARD},
-        CE("div",{style:{display:"flex",alignItems:"center",gap:10,marginBottom:6}},
-          CE("div",{style:{fontSize:13,fontWeight:700,color:"#e2e8f0"}},"날짜별 QC 실적 추이"),
-          CE("div",{style:{fontSize:12,color:"#94a3b8",fontWeight:700,display:"flex",gap:8}},
-            CE("span",null,CE("span",{style:{display:"inline-block",width:8,height:8,background:"#60a5fa99",borderRadius:2,marginRight:2,verticalAlign:"middle"}}),"총건수"),
-            CE("span",null,CE("span",{style:{display:"inline-block",width:10,height:2,background:"#f87171",marginRight:2,verticalAlign:"middle"}}),"부적합률%")
-          )
-        ),
-        CE(ChartBox,{config:trendConfig,height:"190px"})
-      ):null
-
-    ):null,
-
-    /* 업로드 전 트렌드 */
-    (!analysis&&records.length>0)?CE("div",{style:CARD},
-      CE("div",{style:{fontSize:13,fontWeight:700,color:"#e2e8f0",marginBottom:6}},"날짜별 QC 실적 추이"),
-      CE(ChartBox,{config:trendConfig,height:"190px"})
-    ):null
+    /* 좌우 2열 */
+    CE("div",{style:{display:"flex",gap:12,alignItems:"flex-start"}},
+      CE(QCPanel,{
+        title:"🧺 드라이클리닝 QC 현황", color:"#60a5fa",
+        analysis:dryAnalysis,
+        defects:dryDefects, setDefects:setDryDefects,
+        defectSaved:dryDefectSaved, setDefectSaved:setDryDefectSaved,
+        defectData:dryDefectData, setDefectData:setDryDefectData,
+        records:dryRecords
+      }),
+      CE(QCPanel,{
+        title:"💧 웨트클리닝 QC 현황", color:"#34d399",
+        analysis:wetAnalysis,
+        defects:wetDefects, setDefects:setWetDefects,
+        defectSaved:wetDefectSaved, setDefectSaved:setWetDefectSaved,
+        defectData:wetDefectData, setDefectData:setWetDefectData,
+        records:wetRecords
+      })
+    )
   );
 }
 
