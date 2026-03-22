@@ -26,7 +26,7 @@ var useRef    = React.useRef;
 var CE        = React.createElement;
 Chart.register(ChartDataLabels);
 
-var GAS_URL = "https://script.google.com/macros/s/AKfycbyO1cT1t82aTs59KPn_uGs0nriGeIMKx0az7ZRWsx_PpIDMVHnJIXTJDz8-Dd9EVODL6g/exec";
+var GAS_URL = "https://script.google.com/macros/s/AKfycbz7lVCD0KwfUwwwA2VIfeYbrzMJPyHwqfZIL-QMcCHUd0rsVaqtRdG_VUpFsl2lnO-mqg/exec";
 var DEFECT_TYPES  = ["얼룩","손상","먼지"];
 var DEFECT_COLORS = ["#f87171","#fbbf24","#a78bfa","#94a3b8"];
 
@@ -354,7 +354,7 @@ function QCPanel(props){
             CE("span",null,CE("span",{style:{display:"inline-block",width:8,height:2,background:"#f87171",marginRight:2,verticalAlign:"middle"}}),"부적합률%")
           )
         ),
-        CE(ChartBox,{config:itemConfig,height:"180px"})
+        CE(ChartBox,{config:itemConfig,height:"220px"})
       ):null,
 
       /* 얼룩체크 */
@@ -366,7 +366,7 @@ function QCPanel(props){
             CE("div",{style:{fontSize:16,fontWeight:800,color:"#f87171",lineHeight:1}},stainNRate+"%")
           )
         ),
-        CE(ChartBox,{config:stainConfig,height:"140px"})
+        CE(ChartBox,{config:stainConfig,height:"110px"})
       ):null,
 
       /* 트렌드 */
@@ -461,9 +461,9 @@ function App(){
     setSaving(true); setSaveMsg("");
 
     var dryFilled={};
-    if(dryDefectSaved&&dryDefectData) dryDefectData.forEach(function(x){ dryFilled["dry_defect_"+x.name]=x.value; });
+    if(dryDefectSaved&&dryDefectData) dryDefectData.forEach(function(x){ dryFilled["dry_"+x.name]=x.value; });
     var wetFilled={};
-    if(wetDefectSaved&&wetDefectData) wetDefectData.forEach(function(x){ wetFilled["wet_defect_"+x.name]=x.value; });
+    if(wetDefectSaved&&wetDefectData) wetDefectData.forEach(function(x){ wetFilled["wet_"+x.name]=x.value; });
 
     var a=dryAnalysis||{total:0,pass:0,fail:0,failRate:0};
     var b=wetAnalysis||{total:0,pass:0,fail:0,failRate:0};
