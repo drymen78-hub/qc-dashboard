@@ -413,8 +413,17 @@ function App(){
       .then(function(rows){
         var recs=rows.filter(function(r){ return r[0]&&r[0]!=="날짜"; })
           .map(function(r){
-            var raw=st(r[0]).slice(0,10);
-            return {date:raw,label:raw.slice(5).replace("-","/"),
+            // 날짜 형식 정규화 — 숫자(시리얼), 문자열 모두 대응
+            var rawDate = r[0];
+            var dateStr = "";
+            if(typeof rawDate === "number"){
+              // Excel 시리얼 날짜 변환
+              var d = new Date(Math.round((rawDate - 25569)*86400*1000));
+              dateStr = d.toISOString().slice(0,10);
+            } else {
+              dateStr = st(rawDate).slice(0,10);
+            }
+            return {date:dateStr, label:dateStr.slice(5).replace("-","/"),
               total:Number(r[1]),pass:Number(r[2]),fail:Number(r[3]),failRate:Number(r[4]),
               wtotal:Number(r[10]),wpass:Number(r[11]),wfail:Number(r[12]),wfailRate:Number(r[13])};
           })
