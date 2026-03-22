@@ -72,13 +72,14 @@ function makeItemConfig(labels, barData, lineData){
           datalabels:{ color:"#fff", font:{size:10,weight:"bold"}, anchor:"center", align:"center",
             formatter:function(v){ return v>0?v.toLocaleString()+"건":""; } }
         },
-        { type:"line", label:"부적합률", data:lineData,
+        { type:"line", label:"부적합률", data:lineData.map(function(v){ return v>0?v:null; }),
           borderColor:"#f87171", backgroundColor:"transparent",
-          borderWidth:2, pointRadius:4, pointBackgroundColor:"#f87171", tension:0.3, yAxisID:"y2",
+          borderWidth:2, pointRadius:4, pointBackgroundColor:"#f87171",
+          tension:0.3, yAxisID:"y2", spanGaps:false,
           datalabels:{ color:"#fff", font:{size:10,weight:"bold"},
             backgroundColor:"#f87171", borderRadius:4, padding:{left:3,right:3,top:2,bottom:2},
             anchor:"end", align:"top", offset:4,
-            formatter:function(v){ return v+"%"; } }
+            formatter:function(v){ return v>0?v+"%":""; } }
         }
       ]
     },
@@ -342,13 +343,7 @@ function QCPanel(props){
             ])
       ),
 
-      /* 파이 */
-      CE("div",{style:Object.assign({},CARD,{display:"flex",alignItems:"center",gap:10})},
-        CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",flexShrink:0}},"적합/부적합"),
-        CE("div",{style:{position:"relative",flex:1,height:"90px"}},
-          CE(ChartBox,{config:pieConfig,height:"90px"})
-        )
-      ),
+
 
       /* 품목별 */
       analysis.itemStats.length>0?CE("div",{style:CARD},
