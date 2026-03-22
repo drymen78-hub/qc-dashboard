@@ -26,7 +26,7 @@ var useRef    = React.useRef;
 var CE        = React.createElement;
 Chart.register(ChartDataLabels);
 
-var GAS_URL = "https://script.google.com/macros/s/AKfycbz7lVCD0KwfUwwwA2VIfeYbrzMJPyHwqfZIL-QMcCHUd0rsVaqtRdG_VUpFsl2lnO-mqg/exec";
+var GAS_URL = "https://script.google.com/macros/s/AKfycbwHDgltsG5pYNWro25xVqWgLrrFSMUcOnWkfFjMsrSvsGE3Ve7u345OT1KX3rUib5sLbA/exec";
 var DEFECT_TYPES  = ["얼룩","손상","먼지"];
 var DEFECT_COLORS = ["#f87171","#fbbf24","#a78bfa","#94a3b8"];
 
@@ -432,6 +432,7 @@ function App(){
         var wet=recs.map(function(r){ return {date:r.date,label:r.label,total:r.wtotal,pass:r.wpass,fail:r.wfail,failRate:r.wfailRate}; });
         setDryRecords(dry.filter(function(r){ return r.total>0; }));
         setWetRecords(wet.filter(function(r){ return r.total>0; }));
+        // Sheets 성공 시 localStorage 덮어쓰기
         try{ localStorage.setItem("qc_dry",JSON.stringify(dry)); localStorage.setItem("qc_wet",JSON.stringify(wet)); }catch(e){}
       })
       .catch(function(){
