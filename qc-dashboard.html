@@ -26,9 +26,9 @@ var useRef    = React.useRef;
 var CE        = React.createElement;
 Chart.register(ChartDataLabels);
 
-var GAS_URL = "https://script.google.com/macros/s/AKfycbwHDgltsG5pYNWro25xVqWgLrrFSMUcOnWkfFjMsrSvsGE3Ve7u345OT1KX3rUib5sLbA/exec";
-var DEFECT_TYPES  = ["얼룩","손상","먼지"];
-var DEFECT_COLORS = ["#f87171","#fbbf24","#a78bfa","#94a3b8"];
+var GAS_URL = "https://script.google.com/macros/s/AKfycbwYGpkeNJrLbHN00CCw3r4aFzozYn3DZRmfWhqRg5fHzuz4DvSEGrUHLltVwyb_jZEh2w/exec";
+var DEFECT_TYPES  = ["얼룩","손상","먼지","수선","쉬운얼룩제거"];
+var DEFECT_COLORS = ["#f87171","#fbbf24","#a78bfa","#60a5fa","#34d399"];
 
 function st(v){ return (v==null?"":String(v)).trim(); }
 function isPass(v){ var t=st(v).replace(/\s/g,""); return t.includes("적합")&&!t.includes("부적합"); }
@@ -43,245 +43,224 @@ function pct(a,b){ return b>0?+(a/b*100).toFixed(1):0; }
 
 /* ── ChartBox ─────────────────────────────────────── */
 function ChartBox(props){
-  var canvasRef = useRef(null);
-  var chartRef  = useRef(null);
-  var key = JSON.stringify(props.config);
+  var canvasRef=useRef(null), chartRef=useRef(null);
+  var key=JSON.stringify(props.config);
   useEffect(function(){
     if(!canvasRef.current||!props.config) return;
-    if(chartRef.current){ chartRef.current.destroy(); chartRef.current=null; }
-    chartRef.current = new Chart(canvasRef.current, props.config);
-    return function(){
-      if(chartRef.current){ chartRef.current.destroy(); chartRef.current=null; }
-    };
+    if(chartRef.current){chartRef.current.destroy();chartRef.current=null;}
+    chartRef.current=new Chart(canvasRef.current,props.config);
+    return function(){if(chartRef.current){chartRef.current.destroy();chartRef.current=null;}};
   },[key]);
-  return CE("div",{style:{position:"relative",height:props.height||"200px",width:"100%"}},
-    CE("canvas",{ref:canvasRef})
-  );
+  return CE("div",{style:{position:"relative",height:props.height||"200px",width:"100%"}},CE("canvas",{ref:canvasRef}));
 }
 
 /* ── 품목별 config ────────────────────────────────── */
-function makeItemConfig(labels, barData, lineData){
-  var maxBar = Math.max.apply(null, barData.concat([1]));
+function makeItemConfig(labels,barData,lineData){
+  var maxBar=Math.max.apply(null,barData.concat([1]));
   return {
     type:"bar",
-    data:{
-      labels:labels,
-      datasets:[
-        { type:"bar", label:"총건수", data:barData,
-          backgroundColor:"#3b82f699", borderColor:"#60a5fa", borderWidth:2, borderRadius:4, yAxisID:"y1",
-          datalabels:{ color:"#fff", font:{size:10,weight:"bold"}, anchor:"center", align:"center",
-            formatter:function(v){ return v>0?v.toLocaleString()+"건":""; } }
-        },
-        { type:"line", label:"부적합률", data:lineData.map(function(v){ return v>0?v:null; }),
-          borderColor:"#f87171", backgroundColor:"transparent",
-          borderWidth:2, pointRadius:4, pointBackgroundColor:"#f87171",
-          tension:0.3, yAxisID:"y2", spanGaps:false,
-          datalabels:{ color:"#fff", font:{size:10,weight:"bold"},
-            backgroundColor:"#f87171", borderRadius:4, padding:{left:3,right:3,top:2,bottom:2},
-            anchor:"end", align:"top", offset:4,
-            formatter:function(v){ return v>0?v+"%":""; } }
+    data:{labels:labels,datasets:[
+      {type:"bar",label:"총건수",data:barData,
+        backgroundColor:"#3b82f699",borderColor:"#60a5fa",borderWidth:2,borderRadius:4,yAxisID:"y1",
+        datalabels:{color:"#fff",font:{size:10,weight:"bold"},anchor:"center",align:"center",
+          formatter:function(v){return v>0?v.toLocaleString()+"건":"";}
         }
-      ]
-    },
+      },
+      {type:"line",label:"부적합률",data:lineData.map(function(v){return v>0?v:null;}),
+        borderColor:"#f87171",backgroundColor:"transparent",
+        borderWidth:2,pointRadius:4,pointBackgroundColor:"#f87171",tension:0.3,yAxisID:"y2",spanGaps:false,
+        datalabels:{color:"#fff",font:{size:10,weight:"bold"},
+          backgroundColor:"#f87171",borderRadius:4,padding:{left:3,right:3,top:2,bottom:2},
+          anchor:"end",align:"top",offset:4,
+          formatter:function(v){return v>0?v+"%":"";}
+        }
+      }
+    ]},
     options:{
-      responsive:true, maintainAspectRatio:false,
+      responsive:true,maintainAspectRatio:false,
       interaction:{mode:"index",intersect:false},
       layout:{padding:{top:28,right:8}},
-      plugins:{ legend:{display:false},
-        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1} },
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1}},
       scales:{
-        x:{ ticks:{color:"#e2e8f0",font:{size:9,weight:"bold"},maxRotation:0,autoSkip:false}, grid:{color:"#334155"} },
-        y1:{ position:"left", min:0, max:Math.ceil(maxBar*1.4),
+        x:{ticks:{color:"#e2e8f0",font:{size:9,weight:"bold"},maxRotation:0,autoSkip:false},grid:{color:"#334155"}},
+        y1:{position:"left",min:0,max:Math.ceil(maxBar*1.4),
           ticks:{color:"#93c5fd",font:{size:9,weight:"bold"},maxTicksLimit:5,
-            callback:function(v){ return Number.isInteger(v)?v.toLocaleString():""; }}, grid:{color:"#334155"} },
-        y2:{ position:"right", min:-150, max:100,
-          ticks:{color:"#fca5a5",font:{size:9,weight:"bold"}, callback:function(v){ return v>=0?v+"%":""; }},
-          grid:{drawOnChartArea:false} }
+            callback:function(v){return Number.isInteger(v)?v.toLocaleString():""}},grid:{color:"#334155"}},
+        y2:{position:"right",min:-150,max:100,
+          ticks:{color:"#fca5a5",font:{size:9,weight:"bold"},callback:function(v){return v>=0?v+"%":""}},
+          grid:{drawOnChartArea:false}}
       }
     }
   };
 }
 
 /* ── 트렌드 config ────────────────────────────────── */
-function makeTrendConfig(labels, barData, lineData){
-  var maxBar = Math.max.apply(null, barData.concat([1]));
+function makeTrendConfig(labels,barData,lineData){
+  var maxBar=Math.max.apply(null,barData.concat([1]));
   return {
     type:"bar",
-    data:{
-      labels:labels,
-      datasets:[
-        { type:"bar", label:"총QC건수", data:barData,
-          backgroundColor:"#3b82f699", borderColor:"#60a5fa", borderWidth:2, borderRadius:4, yAxisID:"y1",
-          datalabels:{ color:"#93c5fd", font:{size:10,weight:"bold"}, anchor:"end", align:"top", offset:2,
-            formatter:function(v){ return v>0?v.toLocaleString()+"건":""; } }
-        },
-        { type:"line", label:"부적합률", data:lineData,
-          borderColor:"#f87171", backgroundColor:"transparent",
-          borderWidth:2, pointRadius:4, pointBackgroundColor:"#f87171", tension:0.3, yAxisID:"y2",
-          datalabels:{ color:"#fff", font:{size:10,weight:"bold"},
-            backgroundColor:"#f87171", borderRadius:4, padding:{left:3,right:3,top:2,bottom:2},
-            anchor:"end", align:"top", offset:4,
-            formatter:function(v){ return v+"%"; } }
+    data:{labels:labels,datasets:[
+      {type:"bar",label:"총QC건수",data:barData,
+        backgroundColor:"#3b82f699",borderColor:"#60a5fa",borderWidth:2,borderRadius:4,yAxisID:"y1",
+        datalabels:{color:"#93c5fd",font:{size:10,weight:"bold"},anchor:"end",align:"top",offset:2,
+          formatter:function(v){return v>0?v.toLocaleString()+"건":"";}
         }
-      ]
-    },
+      },
+      {type:"line",label:"부적합률",data:lineData,
+        borderColor:"#f87171",backgroundColor:"transparent",
+        borderWidth:2,pointRadius:4,pointBackgroundColor:"#f87171",tension:0.3,yAxisID:"y2",
+        datalabels:{color:"#fff",font:{size:10,weight:"bold"},
+          backgroundColor:"#f87171",borderRadius:4,padding:{left:3,right:3,top:2,bottom:2},
+          anchor:"end",align:"top",offset:4,
+          formatter:function(v){return v+"%";}
+        }
+      }
+    ]},
     options:{
-      responsive:true, maintainAspectRatio:false,
+      responsive:true,maintainAspectRatio:false,
       interaction:{mode:"index",intersect:false},
       layout:{padding:{top:28,right:8}},
-      plugins:{ legend:{display:false},
-        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1} },
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1}},
       scales:{
-        x:{ ticks:{color:"#e2e8f0",font:{size:10,weight:"bold"}}, grid:{color:"#334155"} },
-        y1:{ position:"left", min:0, max:Math.ceil(maxBar*1.4),
+        x:{ticks:{color:"#e2e8f0",font:{size:10,weight:"bold"}},grid:{color:"#334155"}},
+        y1:{position:"left",min:0,max:Math.ceil(maxBar*1.4),
           ticks:{color:"#93c5fd",font:{size:9,weight:"bold"},maxTicksLimit:5,
-            callback:function(v){ return Number.isInteger(v)?v.toLocaleString():""; }}, grid:{color:"#334155"} },
-        y2:{ position:"right", min:0, max:100,
-          ticks:{color:"#fca5a5",font:{size:9,weight:"bold"}, callback:function(v){ return v+"%"; }},
-          grid:{drawOnChartArea:false} }
+            callback:function(v){return Number.isInteger(v)?v.toLocaleString():""}},grid:{color:"#334155"}},
+        y2:{position:"right",min:0,max:100,
+          ticks:{color:"#fca5a5",font:{size:9,weight:"bold"},callback:function(v){return v+"%"}},
+          grid:{drawOnChartArea:false}}
       }
     }
   };
 }
 
 /* ── 얼룩체크 config ──────────────────────────────── */
-function makeStainConfig(yVal, nVal){
+function makeStainConfig(yVal,nVal){
   return {
     type:"bar",
-    data:{
-      labels:["사전 얼룩체크","사전 미체크"],
-      datasets:[{
-        data:[yVal,nVal],
-        backgroundColor:["#f8717188","#4ade8088"],
-        borderColor:["#f87171","#4ade80"],
-        borderWidth:2, borderRadius:6,
-        datalabels:{ color:"#fff", font:{size:13,weight:"bold"}, anchor:"end", align:"top", offset:6,
-          formatter:function(v){ return v+"건"; } }
-      }]
-    },
+    data:{labels:["사전 얼룩체크","사전 미체크"],datasets:[{
+      data:[yVal,nVal],
+      backgroundColor:["#f8717188","#4ade8088"],
+      borderColor:["#f87171","#4ade80"],
+      borderWidth:2,borderRadius:6,
+      datalabels:{color:"#fff",font:{size:13,weight:"bold"},anchor:"end",align:"top",offset:6,
+        formatter:function(v){return v+"건";}
+      }
+    }]},
     options:{
-      responsive:true, maintainAspectRatio:false,
+      responsive:true,maintainAspectRatio:false,
       layout:{padding:{top:28,right:8}},
-      plugins:{ legend:{display:false},
-        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1} },
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:"#1e293b",titleColor:"#f1f5f9",bodyColor:"#94a3b8",borderColor:"#334155",borderWidth:1}},
       scales:{
-        x:{ ticks:{color:"#e2e8f0",font:{size:12,weight:"bold"}}, grid:{color:"#334155"} },
-        y:{ ticks:{color:"#94a3b8",font:{size:10,weight:"bold"},maxTicksLimit:5}, grid:{color:"#334155"} }
+        x:{ticks:{color:"#e2e8f0",font:{size:12,weight:"bold"}},grid:{color:"#334155"}},
+        y:{ticks:{color:"#94a3b8",font:{size:10,weight:"bold"},maxTicksLimit:5},grid:{color:"#334155"}}
       }
     }
   };
 }
 
 /* ── 파이 config ──────────────────────────────────── */
-function makePieConfig(pass, fail){
+function makePieConfig(pass,fail){
   return {
     type:"doughnut",
-    data:{ labels:["적합","부적합"],
-      datasets:[{data:[pass,fail],backgroundColor:["#4ade80","#f87171"],borderColor:"#1e293b",borderWidth:3}] },
-    options:{ responsive:true, maintainAspectRatio:true,
+    data:{labels:["적합","부적합"],
+      datasets:[{data:[pass,fail],backgroundColor:["#4ade80","#f87171"],borderColor:"#1e293b",borderWidth:3}]},
+    options:{responsive:true,maintainAspectRatio:true,
       plugins:{
         legend:{position:"bottom",labels:{color:"#e2e8f0",font:{size:11,weight:"bold"},padding:6}},
-        datalabels:{ color:"#fff", font:{size:12,weight:"bold"},
+        datalabels:{color:"#fff",font:{size:12,weight:"bold"},
           formatter:function(v,ctx){
-            var tot=ctx.dataset.data.reduce(function(a,b){ return a+b; },0);
+            var tot=ctx.dataset.data.reduce(function(a,b){return a+b;},0);
             return tot>0?(v/tot*100).toFixed(0)+"%":"";
-          } }
+          }
+        }
       }
     }
   };
 }
 
-/* ── 데이터 분석 함수 ─────────────────────────────── */
-function analyzeRows(rows, typeFilter){
-  var cols = Object.keys(rows[0]);
-  var rC = fuzzy(cols,"품질검사결과");
-  var iC = fuzzy(cols,"품목명")||fuzzy(cols,"중분류");
-  var sC = fuzzy(cols,"얼룩체크");
-  var tC = fuzzy(cols,"세탁방법");
-
-  var filtered = tC
-    ? rows.filter(function(r){ return st(r[tC]).includes(typeFilter); })
-    : rows;
-
+/* ── 데이터 분석 ──────────────────────────────────── */
+function analyzeRows(rows,typeFilter){
+  var cols=Object.keys(rows[0]);
+  var rC=fuzzy(cols,"품질검사결과");
+  var iC=fuzzy(cols,"품목명")||fuzzy(cols,"중분류");
+  var sC=fuzzy(cols,"얼룩체크");
+  var tC=fuzzy(cols,"세탁방법");
+  var filtered=tC?rows.filter(function(r){return st(r[tC]).includes(typeFilter);}):rows;
   if(!filtered.length) return null;
-
-  var total=filtered.length, pass=0, fail=0;
-  filtered.forEach(function(r){ if(isPass(r[rC]))pass++; else if(isFail(r[rC]))fail++; });
-
+  var total=filtered.length,pass=0,fail=0;
+  filtered.forEach(function(r){if(isPass(r[rC]))pass++;else if(isFail(r[rC]))fail++;});
   var iMap={};
   filtered.forEach(function(r){
     var item=st(r[iC])||"미기재";
     if(!iMap[item])iMap[item]={pass:0,fail:0};
-    if(isPass(r[rC]))iMap[item].pass++; else if(isFail(r[rC]))iMap[item].fail++;
+    if(isPass(r[rC]))iMap[item].pass++;else if(isFail(r[rC]))iMap[item].fail++;
   });
   var itemStats=Object.entries(iMap)
-    .map(function(en){ return {name:en[0],pass:en[1].pass,fail:en[1].fail,
-      total:en[1].pass+en[1].fail,failRate:pct(en[1].fail,en[1].pass+en[1].fail)}; })
-    .sort(function(a,b){ return b.total-a.total; }).slice(0,12);
-
-  var stainY=0, stainN=0;
+    .map(function(en){return {name:en[0],pass:en[1].pass,fail:en[1].fail,
+      total:en[1].pass+en[1].fail,failRate:pct(en[1].fail,en[1].pass+en[1].fail)};})
+    .sort(function(a,b){return b.total-a.total;}).slice(0,12);
+  var stainY=0,stainN=0;
   if(sC){
     filtered.forEach(function(r){
       if(!isFail(r[rC])) return;
-      if(isY(r[sC])) stainY++; else if(isN(r[sC])) stainN++;
+      if(isY(r[sC]))stainY++;else if(isN(r[sC]))stainN++;
     });
   }
-
   return {total:total,pass:pass,fail:fail,itemStats:itemStats,
     stainY:stainY,stainN:stainN,hasStain:!!sC};
 }
 
-/* ── QC패널 컴포넌트 ──────────────────────────────── */
+/* ── QCPanel ──────────────────────────────────────── */
 function QCPanel(props){
-  var title    = props.title;
-  var color    = props.color;   // 헤더 강조색
-  var analysis = props.analysis;
-  var defects  = props.defects;
-  var setDefects = props.setDefects;
-  var defectSaved  = props.defectSaved;
-  var setDefectSaved = props.setDefectSaved;
-  var defectData   = props.defectData;
-  var setDefectData = props.setDefectData;
-  var records  = props.records;
+  var title=props.title, color=props.color;
+  var analysis=props.analysis, setAnalysis=props.setAnalysis;
+  var defects=props.defects, setDefects=props.setDefects;
+  var defectSaved=props.defectSaved, setDefectSaved=props.setDefectSaved;
+  var defectData=props.defectData, setDefectData=props.setDefectData;
+  var records=props.records;
 
-  var failRate = analysis?pct(analysis.fail,analysis.total):0;
-  var entered  = DEFECT_TYPES.reduce(function(sum,t){ return sum+(Number(defects[t])||0); },0);
-  var etc      = analysis?Math.max(0,analysis.fail-entered):0;
-  var stainTotal = analysis?analysis.stainY+analysis.stainN:0;
-  var stainNRate = stainTotal>0?Math.round(analysis.stainN/stainTotal*100):0;
+  var failRate=analysis?pct(analysis.fail,analysis.total):0;
+  var entered=DEFECT_TYPES.reduce(function(s,t){return s+(Number(defects[t])||0);},0);
+  var stainTotal=analysis?analysis.stainY+analysis.stainN:0;
+  var stainNRate=stainTotal>0?Math.round(analysis.stainN/stainTotal*100):0;
 
-  var pieConfig   = analysis?makePieConfig(analysis.pass,analysis.fail):null;
-  var itemConfig  = (analysis&&analysis.itemStats.length>0)
-    ? makeItemConfig(
-        analysis.itemStats.map(function(d){ return d.name; }),
-        analysis.itemStats.map(function(d){ return d.total; }),
-        analysis.itemStats.map(function(d){ return d.failRate; })
-      ):null;
-  var trendConfig = records.length>0
-    ? makeTrendConfig(
-        records.map(function(r){ return r.label; }),
-        records.map(function(r){ return r.total; }),
-        records.map(function(r){ return r.failRate; })
-      ):null;
-  var stainConfig = (analysis&&analysis.hasStain&&stainTotal>0)
-    ? makeStainConfig(analysis.stainY,analysis.stainN):null;
+  var itemConfig=(analysis&&analysis.itemStats.length>0)
+    ?makeItemConfig(
+      analysis.itemStats.map(function(d){return d.name;}),
+      analysis.itemStats.map(function(d){return d.total;}),
+      analysis.itemStats.map(function(d){return d.failRate;})
+    ):null;
+  var trendConfig=records.length>0
+    ?makeTrendConfig(
+      records.map(function(r){return r.label;}),
+      records.map(function(r){return r.total;}),
+      records.map(function(r){return r.failRate;})
+    ):null;
+  var stainConfig=(analysis&&analysis.hasStain&&stainTotal>0)
+    ?makeStainConfig(analysis.stainY,analysis.stainN):null;
 
   var CARD={background:"#1e293b",borderRadius:8,padding:"8px 10px",marginBottom:6};
 
   function doSaveDefects(){
-    var ent=DEFECT_TYPES.reduce(function(s,t){ return s+(Number(defects[t])||0); },0);
-    var e=Math.max(0,analysis.fail-ent);
-    var data=DEFECT_TYPES.map(function(t,i){ return {name:t,value:Number(defects[t])||0,color:DEFECT_COLORS[i]}; });
-    if(e>0) data.push({name:"기타",value:e,color:DEFECT_COLORS[3]});
-    data=data.filter(function(d){ return d.value>0; });
-    setDefectData(data); setDefectSaved(true);
+    // 쉬운얼룩제거만 차감
+    var easyRemove=Number(defects["쉬운얼룩제거"])||0;
+    var newFail=Math.max(0,analysis.fail-easyRemove);
+    var newFailRate=pct(newFail,analysis.total);
+    // analysis 업데이트
+    setAnalysis(Object.assign({},analysis,{fail:newFail}));
+    var data=DEFECT_TYPES.map(function(t,i){return {name:t,value:Number(defects[t])||0,color:DEFECT_COLORS[i]};});
+    data=data.filter(function(d){return d.value>0;});
+    setDefectData(data);
+    setDefectSaved(true);
   }
 
   return CE("div",{style:{flex:1,minWidth:0}},
 
-    /* 패널 헤더 */
-    CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"8px 12px",marginBottom:6,
-      borderLeft:"4px solid "+color}},
+    CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"8px 12px",marginBottom:6,borderLeft:"4px solid "+color}},
       CE("div",{style:{fontSize:15,fontWeight:800,color:color}},title)
     ),
 
@@ -289,7 +268,7 @@ function QCPanel(props){
       "파일을 업로드하면 자동으로 분석됩니다"
     ):CE("div",null,
 
-      /* KPI */
+      /* KPI 1행 — 원본 고정 */
       CE("div",{style:{display:"flex",gap:6,marginBottom:6}},
         [["전체 QC",analysis.total.toLocaleString()+"건","#60a5fa"],
          ["부적합",analysis.fail.toLocaleString()+"건","#f87171"],
@@ -303,47 +282,70 @@ function QCPanel(props){
         })
       ),
 
-      /* 부적합 유형 */
+      /* KPI 2행 — 쉬운얼룩제거 입력 + 보정 후 부적합/부적합률 */
       CE("div",{style:{display:"flex",gap:6,marginBottom:6,alignItems:"stretch"}},
-        !defectSaved
-          ? DEFECT_TYPES.map(function(t){
-              return CE("div",{key:t,style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
-                height:70,display:"flex",flexDirection:"column",justifyContent:"center"}},
-                CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:2}},t),
-                CE("input",{type:"number",min:"0",value:defects[t],
-                  onChange:function(e){ var v=e.target.value; setDefects(function(p){ return Object.assign({},p,{[t]:v}); }); },
-                  style:{width:"100%",textAlign:"center",color:"#f87171",background:"#0f172a",
-                    border:"1px solid #334155",borderRadius:6,padding:"3px",fontSize:16,fontWeight:800,outline:"none"}})
-              );
-            }).concat([
-              CE("div",{key:"etc",style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
-                height:70,display:"flex",flexDirection:"column",justifyContent:"center",opacity:0.5}},
-                CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:2}},"기타"),
-                CE("div",{style:{fontSize:16,fontWeight:800,color:"#94a3b8",textAlign:"center"}},etc)
-              ),
-              CE("div",{key:"btn",style:{display:"flex",alignItems:"center"}},
-                CE("button",{onClick:doSaveDefects,
-                  style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:6,color:"#60a5fa",
-                    padding:"5px 8px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}},"확인")
-              )
-            ])
-          : (defectData||[]).map(function(d){
-              return CE("div",{key:d.name,style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
-                height:70,display:"flex",flexDirection:"column",justifyContent:"center",borderTop:"2px solid "+d.color}},
-                CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:1}},d.name),
-                CE("div",{style:{fontSize:22,fontWeight:800,color:d.color,lineHeight:1}},d.value+"건"),
-                CE("div",{style:{fontSize:10,fontWeight:600,color:"#64748b",marginTop:1}},pct(d.value,analysis.fail)+"%")
-              );
-            }).concat([
-              CE("div",{key:"edit",style:{display:"flex",alignItems:"center"}},
-                CE("button",{onClick:function(){ setDefectSaved(false); },
-                  style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,
-                    color:"#94a3b8",padding:"5px 8px",cursor:"pointer",fontSize:11}},"수정")
-              )
-            ])
+        /* 쉬운얼룩제거 입력칸 */
+        CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
+          height:70,display:"flex",flexDirection:"column",justifyContent:"center",
+          borderTop:"2px solid #34d399"}},
+          CE("div",{style:{fontSize:11,fontWeight:700,color:"#34d399",marginBottom:2}},"쉬운얼룩제거 (차감)"),
+          !defectSaved
+            ? CE("input",{type:"number",min:"0",value:defects["쉬운얼룩제거"],
+                onChange:function(e){var v=e.target.value;setDefects(function(p){return Object.assign({},p,{"쉬운얼룩제거":v});});},
+                style:{width:"100%",textAlign:"center",color:"#34d399",background:"#0f172a",
+                  border:"1px solid #334155",borderRadius:6,padding:"3px",fontSize:16,fontWeight:800,outline:"none"}})
+            : CE("div",{style:{fontSize:22,fontWeight:800,color:"#34d399",lineHeight:1}},
+                (Number(defects["쉬운얼룩제거"])||0)+"건")
+        ),
+        /* 보정 후 부적합 */
+        CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
+          height:70,display:"flex",flexDirection:"column",justifyContent:"center",
+          borderTop:"2px solid #f87171",opacity:defectSaved?1:0.4}},
+          CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:2}},"보정 부적합"),
+          CE("div",{style:{fontSize:22,fontWeight:800,color:"#f87171",lineHeight:1}},
+            defectSaved
+              ? analysis.fail.toLocaleString()+"건"
+              : "–")
+        ),
+        /* 보정 후 부적합률 */
+        CE("div",{style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",flex:1,
+          height:70,display:"flex",flexDirection:"column",justifyContent:"center",
+          borderTop:"2px solid #fbbf24",opacity:defectSaved?1:0.4}},
+          CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:2}},"보정 부적합률"),
+          CE("div",{style:{fontSize:22,fontWeight:800,color:"#fbbf24",lineHeight:1}},
+            defectSaved
+              ? pct(analysis.fail,analysis.total)+"%"
+              : "–")
+        ),
+        /* 확인/수정 버튼 */
+        CE("div",{style:{display:"flex",alignItems:"center"}},
+          !defectSaved
+            ? CE("button",{onClick:doSaveDefects,
+                style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:6,color:"#60a5fa",
+                  padding:"5px 8px",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap"}},"확인")
+            : CE("button",{onClick:function(){setDefectSaved(false);setAnalysis(props.origAnalysis);},
+                style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,
+                  color:"#94a3b8",padding:"5px 8px",cursor:"pointer",fontSize:11}},"수정")
+        )
       ),
 
-
+      /* 부적합 유형 3행 — 얼룩,손상,먼지,수선 */
+      CE("div",{style:{display:"flex",gap:6,marginBottom:6,alignItems:"stretch"}},
+        ["얼룩","손상","먼지","수선"].map(function(t){
+          var idx=DEFECT_TYPES.indexOf(t);
+          return CE("div",{key:t,style:{background:"#1e293b",borderRadius:8,padding:"6px 10px",
+            flex:1,height:70,display:"flex",flexDirection:"column",justifyContent:"center"}},
+            CE("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",marginBottom:2}},t),
+            !defectSaved
+              ? CE("input",{type:"number",min:"0",value:defects[t],
+                  onChange:function(e){var v=e.target.value;setDefects(function(p){return Object.assign({},p,{[t]:v});});},
+                  style:{width:"100%",textAlign:"center",color:"#f87171",background:"#0f172a",
+                    border:"1px solid #334155",borderRadius:6,padding:"3px",fontSize:16,fontWeight:800,outline:"none"}})
+              : CE("div",{style:{fontSize:22,fontWeight:800,color:DEFECT_COLORS[idx],lineHeight:1}},
+                  (Number(defects[t])||0)+"건")
+          );
+        })
+      ),
 
       /* 품목별 */
       analysis.itemStats.length>0?CE("div",{style:CARD},
@@ -384,56 +386,55 @@ function QCPanel(props){
   );
 }
 
-/* ── 메인 App ─────────────────────────────────────── */
+/* ── App ──────────────────────────────────────────── */
 function App(){
   var s;
-  s=useState(new Date().toISOString().slice(0,10)); var reportDate=s[0]; var setReportDate=s[1];
-  s=useState("");     var fileName=s[0];      var setFileName=s[1];
-  s=useState(null);   var dryAnalysis=s[0];   var setDryAnalysis=s[1];
-  s=useState(null);   var wetAnalysis=s[0];   var setWetAnalysis=s[1];
-  s=useState({얼룩:"",손상:"",먼지:""}); var dryDefects=s[0]; var setDryDefects=s[1];
-  s=useState({얼룩:"",손상:"",먼지:""}); var wetDefects=s[0]; var setWetDefects=s[1];
-  s=useState(false);  var dryDefectSaved=s[0];  var setDryDefectSaved=s[1];
-  s=useState(false);  var wetDefectSaved=s[0];  var setWetDefectSaved=s[1];
-  s=useState(null);   var dryDefectData=s[0];   var setDryDefectData=s[1];
-  s=useState(null);   var wetDefectData=s[0];   var setWetDefectData=s[1];
-  s=useState([]);     var dryRecords=s[0];    var setDryRecords=s[1];
-  s=useState([]);     var wetRecords=s[0];    var setWetRecords=s[1];
-  s=useState(false);  var saved=s[0];         var setSaved=s[1];
-  s=useState(false);  var saving=s[0];        var setSaving=s[1];
-  s=useState("");     var saveMsg=s[0];       var setSaveMsg=s[1];
-  s=useState("");     var error=s[0];         var setError=s[1];
+  s=useState(new Date().toISOString().slice(0,10)); var reportDate=s[0];var setReportDate=s[1];
+  s=useState("");    var fileName=s[0];var setFileName=s[1];
+  s=useState(null);  var dryAnalysis=s[0];var setDryAnalysis=s[1];
+  s=useState(null);  var wetAnalysis=s[0];var setWetAnalysis=s[1];
+  s=useState(null);  var dryOrigAnalysis=s[0];var setDryOrigAnalysis=s[1];
+  s=useState(null);  var wetOrigAnalysis=s[0];var setWetOrigAnalysis=s[1];
+  var initDefects={얼룩:"",손상:"",먼지:"",수선:"",쉬운얼룩제거:""};
+  s=useState(Object.assign({},initDefects)); var dryDefects=s[0];var setDryDefects=s[1];
+  s=useState(Object.assign({},initDefects)); var wetDefects=s[0];var setWetDefects=s[1];
+  s=useState(false); var dryDefectSaved=s[0];var setDryDefectSaved=s[1];
+  s=useState(false); var wetDefectSaved=s[0];var setWetDefectSaved=s[1];
+  s=useState(null);  var dryDefectData=s[0];var setDryDefectData=s[1];
+  s=useState(null);  var wetDefectData=s[0];var setWetDefectData=s[1];
+  s=useState([]);    var dryRecords=s[0];var setDryRecords=s[1];
+  s=useState([]);    var wetRecords=s[0];var setWetRecords=s[1];
+  s=useState(false); var saved=s[0];var setSaved=s[1];
+  s=useState(false); var saving=s[0];var setSaving=s[1];
+  s=useState("");    var saveMsg=s[0];var setSaveMsg=s[1];
+  s=useState("");    var error=s[0];var setError=s[1];
 
   var mon=(reportDate||"").slice(5,7).replace(/^0/,"");
   var day=(reportDate||"").slice(8,10).replace(/^0/,"");
 
   useEffect(function(){
     fetch(GAS_URL)
-      .then(function(r){ return r.json(); })
+      .then(function(r){return r.json();})
       .then(function(rows){
-        var recs=rows.filter(function(r){ return r[0]&&r[0]!=="날짜"; })
+        var recs=rows.filter(function(r){return r[0]&&r[0]!=="날짜";})
           .map(function(r){
-            // 날짜 형식 정규화 — 숫자(시리얼), 문자열 모두 대응
-            var rawDate = r[0];
-            var dateStr = "";
-            if(typeof rawDate === "number"){
-              // Excel 시리얼 날짜 변환
-              var d = new Date(Math.round((rawDate - 25569)*86400*1000));
-              dateStr = d.toISOString().slice(0,10);
-            } else {
-              dateStr = st(rawDate).slice(0,10);
-            }
-            return {date:dateStr, label:dateStr.slice(5).replace("-","/"),
+            var rawDate=r[0], dateStr="";
+            if(typeof rawDate==="number"){
+              var d=new Date(Math.round((rawDate-25569)*86400*1000));
+              var offset=d.getTimezoneOffset()*60000;
+              d=new Date(d.getTime()+Math.abs(offset));
+              dateStr=d.toISOString().slice(0,10);
+            } else { dateStr=st(rawDate).slice(0,10); }
+            return {date:dateStr,label:dateStr.slice(5).replace("-","/"),
               total:Number(r[1]),pass:Number(r[2]),fail:Number(r[3]),failRate:Number(r[4]),
-              wtotal:Number(r[10]),wpass:Number(r[11]),wfail:Number(r[12]),wfailRate:Number(r[13])};
+              wtotal:Number(r[11]),wpass:Number(r[12]),wfail:Number(r[13]),wfailRate:Number(r[14])};
           })
-          .sort(function(a,b){ return a.date.localeCompare(b.date); });
-        var dry=recs.map(function(r){ return {date:r.date,label:r.label,total:r.total,pass:r.pass,fail:r.fail,failRate:r.failRate}; });
-        var wet=recs.map(function(r){ return {date:r.date,label:r.label,total:r.wtotal,pass:r.wpass,fail:r.wfail,failRate:r.wfailRate}; });
-        setDryRecords(dry.filter(function(r){ return r.total>0; }));
-        setWetRecords(wet.filter(function(r){ return r.total>0; }));
-        // Sheets 성공 시 localStorage 덮어쓰기
-        try{ localStorage.setItem("qc_dry",JSON.stringify(dry)); localStorage.setItem("qc_wet",JSON.stringify(wet)); }catch(e){}
+          .sort(function(a,b){return a.date.localeCompare(b.date);});
+        var dry=recs.map(function(r){return {date:r.date,label:r.label,total:r.total,pass:r.pass,fail:r.fail,failRate:r.failRate};});
+        var wet=recs.map(function(r){return {date:r.date,label:r.label,total:r.wtotal,pass:r.wpass,fail:r.wfail,failRate:r.wfailRate};});
+        setDryRecords(dry.filter(function(r){return r.total>0;}));
+        setWetRecords(wet.filter(function(r){return r.total>0;}));
+        try{localStorage.setItem("qc_dry",JSON.stringify(dry));localStorage.setItem("qc_wet",JSON.stringify(wet));}catch(e){}
       })
       .catch(function(){
         try{
@@ -446,7 +447,8 @@ function App(){
   function parseFile(file){
     setFileName(file.name); setError("");
     setDryAnalysis(null); setWetAnalysis(null);
-    setDryDefects({얼룩:"",손상:"",먼지:""}); setWetDefects({얼룩:"",손상:"",먼지:""});
+    setDryOrigAnalysis(null); setWetOrigAnalysis(null);
+    setDryDefects(Object.assign({},initDefects)); setWetDefects(Object.assign({},initDefects));
     setDryDefectSaved(false); setWetDefectSaved(false);
     setDryDefectData(null); setWetDefectData(null);
     setSaved(false); setSaveMsg("");
@@ -456,12 +458,12 @@ function App(){
         var wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
         var ws=wb.Sheets[wb.SheetNames[0]];
         var rows=XLSX.utils.sheet_to_json(ws,{defval:"",raw:false});
-        if(!rows.length){ setError("데이터 없음"); return; }
+        if(!rows.length){setError("데이터 없음");return;}
         var dry=analyzeRows(rows,"드라이");
         var wet=analyzeRows(rows,"웨트");
-        setDryAnalysis(dry);
-        setWetAnalysis(wet);
-      }catch(err){ setError("파싱 오류: "+err.message); }
+        setDryAnalysis(dry); setDryOrigAnalysis(dry);
+        setWetAnalysis(wet); setWetOrigAnalysis(wet);
+      }catch(err){setError("파싱 오류: "+err.message);}
     };
     reader.readAsArrayBuffer(file);
   }
@@ -469,38 +471,31 @@ function App(){
   function handleSave(){
     if((!dryAnalysis&&!wetAnalysis)||!reportDate) return;
     setSaving(true); setSaveMsg("");
-
     var dryFilled={};
-    if(dryDefectSaved&&dryDefectData) dryDefectData.forEach(function(x){ dryFilled["dry_"+x.name]=x.value; });
+    if(dryDefectSaved&&dryDefectData) dryDefectData.forEach(function(x){dryFilled["dry_"+x.name]=x.value;});
     var wetFilled={};
-    if(wetDefectSaved&&wetDefectData) wetDefectData.forEach(function(x){ wetFilled["wet_"+x.name]=x.value; });
-
-    var a=dryAnalysis||{total:0,pass:0,fail:0,failRate:0};
-    var b=wetAnalysis||{total:0,pass:0,fail:0,failRate:0};
-
+    if(wetDefectSaved&&wetDefectData) wetDefectData.forEach(function(x){wetFilled["wet_"+x.name]=x.value;});
+    var a=dryAnalysis||{total:0,pass:0,fail:0};
+    var b=wetAnalysis||{total:0,pass:0,fail:0};
     var payload=Object.assign({
       date:reportDate,
-      dry_total:a.total, dry_pass:a.pass, dry_fail:a.fail, dry_failRate:pct(a.fail,a.total),
-      wet_total:b.total, wet_pass:b.pass, wet_fail:b.fail, wet_failRate:pct(b.fail,b.total)
+      dry_total:a.total,dry_pass:a.pass,dry_fail:a.fail,dry_failRate:pct(a.fail,a.total),
+      wet_total:b.total,wet_pass:b.pass,wet_fail:b.fail,wet_failRate:pct(b.fail,b.total)
     },dryFilled,wetFilled);
-
-    // 로컬 저장
     var label=reportDate.slice(5).replace("-","/");
     var dryRec={date:reportDate,label:label,total:a.total,pass:a.pass,fail:a.fail,failRate:pct(a.fail,a.total)};
     var wetRec={date:reportDate,label:label,total:b.total,pass:b.pass,fail:b.fail,failRate:pct(b.fail,b.total)};
-    var updDry=dryRecords.filter(function(r){ return r.date!==reportDate; }); updDry.push(dryRec); updDry.sort(function(a,b){ return a.date.localeCompare(b.date); });
-    var updWet=wetRecords.filter(function(r){ return r.date!==reportDate; }); updWet.push(wetRec); updWet.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    var updDry=dryRecords.filter(function(r){return r.date!==reportDate;}); updDry.push(dryRec); updDry.sort(function(a,b){return a.date.localeCompare(b.date);});
+    var updWet=wetRecords.filter(function(r){return r.date!==reportDate;}); updWet.push(wetRec); updWet.sort(function(a,b){return a.date.localeCompare(b.date);});
     setDryRecords(updDry); setWetRecords(updWet);
-    try{ localStorage.setItem("qc_dry",JSON.stringify(updDry)); localStorage.setItem("qc_wet",JSON.stringify(updWet)); }catch(e){}
-
+    try{localStorage.setItem("qc_dry",JSON.stringify(updDry));localStorage.setItem("qc_wet",JSON.stringify(updWet));}catch(e){}
     fetch(GAS_URL,{method:"POST",mode:"no-cors",body:JSON.stringify(payload)})
-      .then(function(){ setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); })
-      .catch(function(){ setSaving(false); setSaved(true); setSaveMsg("✓ 저장 완료"); });
+      .then(function(){setSaving(false);setSaved(true);setSaveMsg("✓ 저장 완료");})
+      .catch(function(){setSaving(false);setSaved(true);setSaveMsg("✓ 저장 완료");});
   }
 
   return CE("div",{style:{maxWidth:1400,margin:"0 auto"}},
 
-    /* 타이틀 + 컨트롤 */
     CE("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:8}},
       CE("div",null,
         CE("h1",{style:{fontSize:20,fontWeight:800}},
@@ -509,13 +504,12 @@ function App(){
       ),
       CE("div",{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}},
         CE("input",{type:"date",value:reportDate,
-          onChange:function(e){ setReportDate(e.target.value); },
+          onChange:function(e){setReportDate(e.target.value);},
           style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,color:"#f1f5f9",padding:"5px 10px",fontSize:13,outline:"none"}}),
-        CE("button",{
-          onClick:function(){ document.getElementById("fi").click(); },
+        CE("button",{onClick:function(){document.getElementById("fi").click();},
           style:{background:"#1e293b",border:"1px solid #334155",borderRadius:6,color:"#94a3b8",padding:"5px 12px",cursor:"pointer",fontSize:13,fontWeight:700}},"📂 파일 업로드"),
         CE("input",{id:"fi",type:"file",accept:".xlsx,.xls,.csv",style:{display:"none"},
-          onChange:function(e){ if(e.target.files[0])parseFile(e.target.files[0]); }}),
+          onChange:function(e){if(e.target.files[0])parseFile(e.target.files[0]);}}),
         ((dryAnalysis||wetAnalysis)&&!saved)?CE("button",{onClick:handleSave,disabled:saving,
           style:{background:"#1e3a5f",border:"1px solid #2563eb",borderRadius:6,color:"#60a5fa",
             padding:"5px 14px",cursor:"pointer",fontSize:13,fontWeight:700}},
@@ -523,7 +517,8 @@ function App(){
         saveMsg?CE("span",{style:{fontSize:13,fontWeight:700,color:"#4ade80"}},saveMsg):null,
         (dryAnalysis||wetAnalysis)?CE("button",{onClick:function(){
             setDryAnalysis(null);setWetAnalysis(null);setFileName("");
-            setDryDefects({얼룩:"",손상:"",먼지:""});setWetDefects({얼룩:"",손상:"",먼지:""});
+            setDryOrigAnalysis(null);setWetOrigAnalysis(null);
+            setDryDefects(Object.assign({},initDefects));setWetDefects(Object.assign({},initDefects));
             setDryDefectSaved(false);setWetDefectSaved(false);
             setDryDefectData(null);setWetDefectData(null);
             setSaved(false);setSaveMsg("");},
@@ -535,22 +530,23 @@ function App(){
     error?CE("div",{style:{background:"#450a0a",border:"1px solid #f87171",borderRadius:6,
       padding:"8px 12px",color:"#fca5a5",marginBottom:8,fontSize:13}},error):null,
 
-    /* 좌우 2열 */
     CE("div",{style:{display:"flex",gap:12,alignItems:"flex-start"}},
       CE(QCPanel,{
-        title:"🧺 드라이클리닝 QC 현황", color:"#60a5fa",
-        analysis:dryAnalysis,
-        defects:dryDefects, setDefects:setDryDefects,
-        defectSaved:dryDefectSaved, setDefectSaved:setDryDefectSaved,
-        defectData:dryDefectData, setDefectData:setDryDefectData,
+        title:"🧺 드라이클리닝 QC 현황",color:"#60a5fa",
+        analysis:dryAnalysis,setAnalysis:setDryAnalysis,
+        origAnalysis:dryOrigAnalysis,
+        defects:dryDefects,setDefects:setDryDefects,
+        defectSaved:dryDefectSaved,setDefectSaved:setDryDefectSaved,
+        defectData:dryDefectData,setDefectData:setDryDefectData,
         records:dryRecords
       }),
       CE(QCPanel,{
-        title:"💧 웨트클리닝 QC 현황", color:"#34d399",
-        analysis:wetAnalysis,
-        defects:wetDefects, setDefects:setWetDefects,
-        defectSaved:wetDefectSaved, setDefectSaved:setWetDefectSaved,
-        defectData:wetDefectData, setDefectData:setWetDefectData,
+        title:"💧 웨트클리닝 QC 현황",color:"#34d399",
+        analysis:wetAnalysis,setAnalysis:setWetAnalysis,
+        origAnalysis:wetOrigAnalysis,
+        defects:wetDefects,setDefects:setWetDefects,
+        defectSaved:wetDefectSaved,setDefectSaved:setWetDefectSaved,
+        defectData:wetDefectData,setDefectData:setWetDefectData,
         records:wetRecords
       })
     )
